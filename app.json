@@ -36,7 +36,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0d9488"
-      }
+      },
+      "package": "com.anonymous.roundshub"
     },
     "web": {
       "bundler": "metro",
