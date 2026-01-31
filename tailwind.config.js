@@ -41,6 +41,30 @@ module.exports = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          foreground: 'hsl(var(--info-foreground))',
+        },
+        'bed-empty': {
+          DEFAULT: 'hsl(var(--bed-empty))',
+          foreground: 'hsl(var(--bed-empty-foreground))',
+        },
+        'bed-occupied': {
+          DEFAULT: 'hsl(var(--bed-occupied))',
+          foreground: 'hsl(var(--bed-occupied-foreground))',
+        },
+      },
+      boxShadow: {
+        'premium': '0 4px 14px 0 rgb(0 0 0 / 0.08), 0 1px 3px 0 rgb(0 0 0 / 0.04)',
+        'premium-lg': '0 10px 40px -10px rgb(0 0 0 / 0.12), 0 2px 8px -2px rgb(0 0 0 / 0.06)',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -59,10 +83,21 @@ module.exports = {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
+        shimmer: {
+          '0%': { opacity: '0.5', transform: 'translateX(-100%)' },
+          '50%': { opacity: '1' },
+          '100%': { opacity: '0.5', transform: 'translateX(100%)' },
+        },
+        'pulse-soft': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.7' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        shimmer: 'shimmer 1.8s ease-in-out infinite',
+        'pulse-soft': 'pulse-soft 1.2s ease-in-out infinite',
       },
     },
   },
