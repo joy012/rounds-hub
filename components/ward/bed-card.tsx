@@ -19,6 +19,7 @@ export interface BedCardProps {
   className?: string;
 }
 
+/** Bed data badges: Pt = Patient, Dx = Diagnosis, Pl = Plan (treatment plan), Inv = Investigations */
 const INDICATOR_CONFIG = [
   { key: 'name' as const, label: 'Pt', Icon: User, color: 'text-info' },
   { key: 'dx' as const, label: 'Dx', Icon: Stethoscope, color: 'text-primary' },

@@ -24,6 +24,10 @@ export interface PatientData {
   name?: string;
   age?: number;
   gender?: 'Male' | 'Female' | 'Other';
+  /** ISO date string (YYYY-MM-DD). Optional. */
+  admissionDate?: string;
+  /** ISO date string (YYYY-MM-DD). Optional. */
+  dischargeDate?: string;
   dx?: DxPlanContent;
   plan?: DxPlanContent;
   inv?: InvRow[];

@@ -34,6 +34,10 @@ function buildPatientSection(patient: NonNullable<Bed['patient']>): string {
   if (patient.name) parts.push(`<p><strong>Name:</strong> ${escapeHtml(patient.name)}</p>`);
   if (patient.age != null) parts.push(`<p><strong>Age:</strong> ${patient.age}</p>`);
   if (patient.gender) parts.push(`<p><strong>Gender:</strong> ${escapeHtml(patient.gender)}</p>`);
+  if (patient.admissionDate)
+    parts.push(`<p><strong>Admission:</strong> ${escapeHtml(patient.admissionDate)}</p>`);
+  if (patient.dischargeDate)
+    parts.push(`<p><strong>Discharge:</strong> ${escapeHtml(patient.dischargeDate)}</p>`);
   if (parts.length === 0) return '';
   return `<div class="section"><h2>Patient info</h2>${parts.join('')}</div>`;
 }

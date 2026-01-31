@@ -5,24 +5,26 @@ import { InvCellEditor } from '@/components/ward/inv-cell-editor';
 import { ConsentModal } from '@/components/ward/modal-confirmation';
 import type { DxPlanContent, InvRow } from '@/lib/types';
 import { generateId } from '@/lib/utils';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import { GripHorizontal, GripVertical, Pen, Plus, Save } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Platform,
-  Pressable,
   ScrollView,
   useWindowDimensions,
   View,
   type ViewStyle,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
-import { GripHorizontal, GripVertical, Pen, Plus, Save } from 'lucide-react-native';
 
 const MIN_COL_WIDTH = 60;
 const MAX_COL_WIDTH = 320;
-const RESIZER_WIDTH = 8;
+/** Column resizer touch area width; min ~44pt for reliable touch. */
+const RESIZER_WIDTH = 44;
+/** Row resizer strip min height for reliable touch. */
+const ROW_RESIZER_MIN_HEIGHT = 44;
 /** Default column ratios: first two same, third larger. Sum = 1. */
 const DEFAULT_COL_RATIOS = { date: 0.25, investigation: 0.25, findings: 0.5 };
 const TABLET_BREAKPOINT = 600;
@@ -48,25 +50,23 @@ function getCellContent(row: InvRow, key: string): { text?: string; image?: stri
   return { text, image };
 }
 
+/** Presentational cell content; touch is handled by parent GestureDetector so long-press vs tap work correctly. */
 function InvCell({
   row,
   columnKey,
   width,
-  onPress,
 }: {
   row: InvRow;
   columnKey: string;
   width: number;
-  onPress: () => void;
 }) {
   const content = getCellContent(row, columnKey);
 
   const style = width > 0 ? { width } : { flex: 1 };
 
   return (
-    <Pressable
-      onPress={onPress}
-      className="min-h-10 justify-center border-r border-border p-2 last:border-r-0 active:bg-muted/50"
+    <View
+      className="min-h-10 justify-center border-r border-border p-2 last:border-r-0"
       style={style}
     >
       {content.image ? (
@@ -97,7 +97,7 @@ function InvCell({
           </Text>
         </View>
       )}
-    </Pressable>
+    </View>
   );
 }
 
@@ -171,7 +171,7 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
     : null;
 
   return (
-      <View className="gap-2">
+    <View className="gap-2">
       <View className="flex-row flex-wrap items-center justify-between gap-1.5">
         <View className="flex-1">
           <Text variant="small" className="font-medium text-muted-foreground">
@@ -241,10 +241,10 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
         onSave={
           editingCell
             ? (value) => {
-                updateCell(editingCell.rowId, editingCell.column, value);
-                setEditingCell(null);
-              }
-            : () => {}
+              updateCell(editingCell.rowId, editingCell.column, value);
+              setEditingCell(null);
+            }
+            : () => { }
         }
         onPenModeChange={onPenModeChange}
       />
@@ -289,10 +289,15 @@ function ColumnResizer({
   return (
     <GestureDetector gesture={panGesture}>
       <View
-        className="w-2 flex-shrink-0 items-center justify-center bg-transparent active:bg-primary/20"
-        style={(Platform.OS === 'web' ? { cursor: 'col-resize' as ViewStyle['cursor'] } : undefined)}
+        className="flex-shrink-0 items-center justify-center self-stretch border-l border-r border-border bg-muted/40 dark:bg-muted/30"
+        style={[
+          { width: RESIZER_WIDTH, minWidth: RESIZER_WIDTH },
+          Platform.OS === 'web' ? { cursor: 'col-resize' as ViewStyle['cursor'] } : undefined,
+        ]}
       >
-        <Icon as={GripHorizontal} size={12} className="text-muted-foreground" />
+        <View className="rounded-lg border-2 border-border bg-background px-2 py-3 dark:border-muted-foreground/40 dark:bg-muted/50">
+          <Icon as={GripHorizontal} size={26} className="text-muted-foreground" />
+        </View>
       </View>
     </GestureDetector>
   );
@@ -315,42 +320,44 @@ function InvTableHeader({
     [contentWidth]
   );
 
+  /** Resize only Date and Investigation; Findings ratio unchanged so its column doesn't move. */
   const resizeDateInvestigation = useCallback(
     (deltaPx: number) => {
       onColumnRatiosChange((prev) => {
         const minR = MIN_COL_WIDTH / contentWidth;
         const maxR = MAX_COL_WIDTH / contentWidth;
         const deltaR = deltaPx / contentWidth;
-        let newDate = prev.date + deltaR;
-        let newInv = prev.investigation - deltaR;
-        newDate = Math.min(maxR, Math.max(minR, newDate));
-        newInv = Math.min(maxR, Math.max(minR, newInv));
-        const sum = newDate + newInv + prev.findings;
+        const pairSum = prev.date + prev.investigation;
+        const low = Math.max(minR, pairSum - maxR);
+        const high = Math.min(maxR, pairSum - minR);
+        const newDate = Math.max(low, Math.min(high, prev.date + deltaR));
+        const newInv = pairSum - newDate;
         return {
-          date: newDate / sum,
-          investigation: newInv / sum,
-          findings: prev.findings / sum,
+          date: newDate,
+          investigation: newInv,
+          findings: prev.findings,
         };
       });
     },
     [onColumnRatiosChange, contentWidth]
   );
 
+  /** Resize only Investigation and Findings; Date ratio unchanged. */
   const resizeInvestigationFindings = useCallback(
     (deltaPx: number) => {
       onColumnRatiosChange((prev) => {
         const minR = MIN_COL_WIDTH / contentWidth;
         const maxR = MAX_COL_WIDTH / contentWidth;
         const deltaR = deltaPx / contentWidth;
-        let newInv = prev.investigation + deltaR;
-        let newFind = prev.findings - deltaR;
-        newInv = Math.min(maxR, Math.max(minR, newInv));
-        newFind = Math.min(maxR, Math.max(minR, newFind));
-        const sum = prev.date + newInv + newFind;
+        const pairSum = prev.investigation + prev.findings;
+        const low = Math.max(minR, pairSum - maxR);
+        const high = Math.min(maxR, pairSum - minR);
+        const newInv = Math.max(low, Math.min(high, prev.investigation + deltaR));
+        const newFind = pairSum - newInv;
         return {
-          date: prev.date / sum,
-          investigation: newInv / sum,
-          findings: newFind / sum,
+          date: prev.date,
+          investigation: newInv,
+          findings: newFind,
         };
       });
     },
@@ -378,30 +385,24 @@ function InvTableHeader({
   const findingsW = toPx(columnRatios.findings);
 
   return (
-    <>
-      {/* Resizer row: on top of header so header text doesn't break */}
-      <View className="flex-row border-b border-border bg-muted/30 dark:bg-muted/20">
-        <View style={{ width: dateW }} className="flex-shrink-0" />
-        <ColumnResizer onResize={resizeDateInvestigation} deltaSign={1} />
-        <View style={{ width: invW }} className="flex-shrink-0" />
-        <ColumnResizer onResize={resizeInvestigationFindings} deltaSign={1} />
-        <View style={{ width: findingsW }} className="flex-shrink-0" />
+    <View className="flex-row border-b border-border bg-primary/10 dark:bg-primary/15">
+      <View className="flex-shrink-0 border-r border-border p-2" style={{ width: dateW }}>
+        <Text variant="small" className="font-semibold text-foreground">Date</Text>
       </View>
-      {/* Header row: column labels only */}
-      <View className="flex-row border-b border-border bg-primary/10 dark:bg-primary/15">
-        <View className="flex-shrink-0 border-r border-border p-2" style={{ width: dateW }}>
-          <Text variant="small" className="font-semibold text-foreground">Date</Text>
-        </View>
-        <View className="flex-shrink-0 border-r border-border p-2" style={{ width: invW }}>
-          <Text variant="small" className="font-semibold text-foreground">Investigation</Text>
-        </View>
-        <View className="flex-shrink-0 border-r border-border p-2 last:border-r-0" style={{ width: findingsW }}>
-          <Text variant="small" className="font-semibold text-foreground">Findings</Text>
-        </View>
+      <ColumnResizer onResize={resizeDateInvestigation} deltaSign={1} />
+      <View className="flex-shrink-0 border-r border-border p-2" style={{ width: invW }}>
+        <Text variant="small" className="font-semibold text-foreground">Investigation</Text>
       </View>
-    </>
+      <ColumnResizer onResize={resizeInvestigationFindings} deltaSign={1} />
+      <View className="flex-shrink-0 border-r border-border p-2 last:border-r-0" style={{ width: findingsW }}>
+        <Text variant="small" className="font-semibold text-foreground">Findings</Text>
+      </View>
+    </View>
   );
 }
+
+const LONG_PRESS_DURATION_MS = 450;
+const TAP_MAX_DURATION_MS = 350;
 
 function InvTableRow({
   row,
@@ -433,6 +434,52 @@ function InvTableRow({
     [contentWidth, columnRatios]
   );
 
+  const longPressGesture = useMemo(
+    () =>
+      Gesture.LongPress()
+        .minDuration(LONG_PRESS_DURATION_MS)
+        .onStart(() => {
+          runOnJS(onRemove)();
+        }),
+    [onRemove]
+  );
+
+  const tapDate = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDuration(TAP_MAX_DURATION_MS)
+        .requireExternalGestureToFail(longPressGesture)
+        .onEnd(() => {
+          runOnJS(onCellPress)('date');
+        }),
+    [longPressGesture, onCellPress]
+  );
+  const tapInvestigation = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDuration(TAP_MAX_DURATION_MS)
+        .requireExternalGestureToFail(longPressGesture)
+        .onEnd(() => {
+          runOnJS(onCellPress)('investigation');
+        }),
+    [longPressGesture, onCellPress]
+  );
+  const tapFindings = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDuration(TAP_MAX_DURATION_MS)
+        .requireExternalGestureToFail(longPressGesture)
+        .onEnd(() => {
+          runOnJS(onCellPress)('findings');
+        }),
+    [longPressGesture, onCellPress]
+  );
+
+  const tapGestures = useMemo(
+    () => ({ date: tapDate, investigation: tapInvestigation, findings: tapFindings }),
+    [tapDate, tapInvestigation, tapFindings]
+  );
+
   const panGesture = Gesture.Pan()
     .onStart(() => {
       startHeight.current = height;
@@ -449,61 +496,61 @@ function InvTableRow({
       className="flex-row"
       style={{ minHeight: height }}
     >
-      {COLUMN_KEYS.map((key) =>
-        isTablet ? (
-          <View key={key} className="flex-shrink-0" style={{ width: colWidths[key as keyof typeof colWidths] }}>
-            <InvCell
-              row={row}
-              columnKey={key}
-              width={colWidths[key as keyof typeof colWidths]}
-              onPress={() => onCellPress(key as 'date' | 'investigation' | 'findings')}
-            />
-          </View>
+      {COLUMN_KEYS.map((key) => {
+        const tapGesture = tapGestures[key as keyof typeof tapGestures];
+        return isTablet ? (
+          <GestureDetector key={key} gesture={tapGesture}>
+            <View className="flex-shrink-0 active:bg-muted/50" style={{ width: colWidths[key as keyof typeof colWidths] }}>
+              <InvCell
+                row={row}
+                columnKey={key}
+                width={colWidths[key as keyof typeof colWidths]}
+              />
+            </View>
+          </GestureDetector>
         ) : (
-          <Pressable
-            key={key}
-            className="min-w-0 flex-1 justify-center border-r border-border p-2 last:border-r-0 active:bg-muted/50"
-            onPress={() => onCellPress(key as 'date' | 'investigation' | 'findings')}
-          >
-            <InvCell
-              row={row}
-              columnKey={key}
-              width={0}
-              onPress={() => onCellPress(key as 'date' | 'investigation' | 'findings')}
-            />
-          </Pressable>
-        )
-      )}
+          <GestureDetector key={key} gesture={tapGesture}>
+            <View className="min-w-0 flex-1 active:bg-muted/50">
+              <InvCell
+                row={row}
+                columnKey={key}
+                width={0}
+              />
+            </View>
+          </GestureDetector>
+        );
+      })}
     </View>
   );
 
   if (!isTablet) {
     return (
-      <Pressable
-        className="border-b border-border last:border-b-0 active:opacity-95"
-        onLongPress={onRemove}
-        delayLongPress={400}
-      >
-        {rowContent}
-      </Pressable>
+      <GestureDetector gesture={longPressGesture}>
+        <View className="border-b border-border last:border-b-0">
+          {rowContent}
+        </View>
+      </GestureDetector>
     );
   }
 
   return (
-    <Pressable
-      className="border-b border-border last:border-b-0"
-      onLongPress={onRemove}
-      delayLongPress={400}
-    >
-      {rowContent}
-      <GestureDetector gesture={panGesture}>
-        <View
-          className="h-2 items-center justify-center bg-muted/30 dark:bg-muted/20"
-          style={(Platform.OS === 'web' ? { cursor: 'ns-resize' as ViewStyle['cursor'] } : undefined)}
-        >
-          <Icon as={GripVertical} size={14} className="text-muted-foreground" />
-        </View>
-      </GestureDetector>
-    </Pressable>
+    <GestureDetector gesture={longPressGesture}>
+      <View className="border-b border-border last:border-b-0">
+        {rowContent}
+        <GestureDetector gesture={panGesture}>
+          <View
+            className="items-center justify-center border-t border-border bg-muted/40 dark:bg-muted/30"
+            style={[
+              { minHeight: ROW_RESIZER_MIN_HEIGHT },
+              Platform.OS === 'web' ? { cursor: 'ns-resize' as ViewStyle['cursor'] } : undefined,
+            ]}
+          >
+            <View className="rounded-lg border-2 border-border bg-background px-3 py-2 dark:border-muted-foreground/40 dark:bg-muted/50">
+              <Icon as={GripVertical} size={22} className="text-muted-foreground" />
+            </View>
+          </View>
+        </GestureDetector>
+      </View>
+    </GestureDetector>
   );
 }

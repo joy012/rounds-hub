@@ -103,8 +103,11 @@ export function TextInputArea({
 
   const PEN_MIN = 0.5;
   const PEN_MAX = 2.5;
-  const ERASER_MIN = 14;
-  const ERASER_MAX = 32;
+  /** Larger eraser so users can clear content faster when there is a lot of handwriting */
+  const ERASER_MIN = 28;
+  const ERASER_MAX = 64;
+  /** Handwriting canvas height so users can write more in Dx, Plan, and Inv sections */
+  const HANDWRITING_CANVAS_HEIGHT = 240;
 
   const handleEraser = useCallback(() => {
     signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
@@ -206,7 +209,10 @@ export function TextInputArea({
         <Text variant="small" className="font-medium text-muted-foreground">
           Handwriting
         </Text>
-        <View className="h-36 overflow-hidden rounded-lg border border-border bg-muted/30 dark:border-border dark:bg-muted/20">
+        <View
+          className="overflow-hidden rounded-lg border border-border bg-muted/30 dark:border-border dark:bg-muted/20"
+          style={{ height: HANDWRITING_CANVAS_HEIGHT }}
+        >
           <SignatureView
             ref={signatureRef}
             onOK={handleSignatureSave}
@@ -218,13 +224,13 @@ export function TextInputArea({
             maxWidth={PEN_MAX}
             webStyle={`
               .m-signature-pad { box-shadow: none; border: none; background: ${bgColor}; }
-              .m-signature-pad--body { border: none; min-height: 140px; background: ${bgColor}; }
+              .m-signature-pad--body { border: none; min-height: ${HANDWRITING_CANVAS_HEIGHT}px; background: ${bgColor}; }
               .m-signature-pad--footer { display: none; }
               .m-signature-pad .m-signature-pad--body canvas { background: ${bgColor}; }
             `}
             autoClear={false}
             imageType="image/png"
-            style={{ flex: 1, height: 140 }}
+            style={{ flex: 1, height: HANDWRITING_CANVAS_HEIGHT }}
           />
         </View>
         <View className="flex-row flex-wrap gap-2">

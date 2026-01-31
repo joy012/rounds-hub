@@ -29,6 +29,8 @@ function parseBedFromJson(value: JsonValue): Bed | null {
       typeof p.name === 'string' ||
       typeof p.age === 'number' ||
       typeof p.gender === 'string' ||
+      typeof p.admissionDate === 'string' ||
+      typeof p.dischargeDate === 'string' ||
       p.dx ||
       p.plan ||
       Array.isArray(p.inv)
@@ -62,6 +64,12 @@ function parseBedFromJson(value: JsonValue): Bed | null {
         ...(p.gender === 'Male' || p.gender === 'Female' || p.gender === 'Other'
           ? { gender: p.gender }
           : {}),
+        ...(typeof p.admissionDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.admissionDate) && {
+          admissionDate: p.admissionDate,
+        }),
+        ...(typeof p.dischargeDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.dischargeDate) && {
+          dischargeDate: p.dischargeDate,
+        }),
         ...(dxObj && {
           dx: {
             text: typeof dxObj.text === 'string' ? dxObj.text : undefined,

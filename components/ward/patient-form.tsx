@@ -1,3 +1,4 @@
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
@@ -10,7 +11,7 @@ import {
   type Option,
 } from '@/components/ui/select';
 import type { PatientData } from '@/lib/types';
-import { Hash, User, VenusAndMars } from 'lucide-react-native';
+import { CalendarDays, Hash, User, VenusAndMars } from 'lucide-react-native';
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { Icon } from '@/components/ui/icon';
@@ -30,6 +31,8 @@ export function PatientForm({ patient, onChange }: PatientFormProps) {
   const name = patient?.name ?? '';
   const age = patient?.age ?? undefined;
   const gender = patient?.gender ?? undefined;
+  const admissionDate = patient?.admissionDate;
+  const dischargeDate = patient?.dischargeDate;
 
   const update = useCallback(
     (updates: Partial<PatientData>) => {
@@ -111,6 +114,41 @@ export function PatientForm({ patient, onChange }: PatientFormProps) {
               ))}
             </SelectContent>
           </Select>
+        </View>
+      </View>
+
+      <View className="flex-row gap-3">
+        <View className="flex-1 gap-2">
+          <Label>
+            <View className="flex-row items-center gap-2">
+              <Icon as={CalendarDays} size={14} className="text-primary" />
+              <Text variant="small" className="text-foreground">
+                Admission date
+              </Text>
+            </View>
+          </Label>
+          <DatePickerField
+            value={admissionDate}
+            onChange={(v) => update({ admissionDate: v })}
+            placeholder="Optional"
+            accessibilityLabel="Admission date"
+          />
+        </View>
+        <View className="flex-1 gap-2">
+          <Label>
+            <View className="flex-row items-center gap-2">
+              <Icon as={CalendarDays} size={14} className="text-primary" />
+              <Text variant="small" className="text-foreground">
+                Discharge date
+              </Text>
+            </View>
+          </Label>
+          <DatePickerField
+            value={dischargeDate}
+            onChange={(v) => update({ dischargeDate: v })}
+            placeholder="Optional"
+            accessibilityLabel="Discharge date"
+          />
         </View>
       </View>
     </View>
