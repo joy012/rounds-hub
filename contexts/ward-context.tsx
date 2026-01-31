@@ -7,9 +7,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 
 interface WardContextValue {
   ward: Ward | null;
@@ -45,6 +47,9 @@ export function WardProvider({ children }: { children: ReactNode }) {
   const [ward, setWard] = useState<Ward | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const wardRef = useRef<Ward | null>(null);
+  wardRef.current = ward;
+
   useEffect(() => {
     let cancelled = false;
     loadWard()
@@ -77,6 +82,17 @@ export function WardProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Persist to storage when app goes to background or closes so data is never lost
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        const current = wardRef.current;
+        if (current) saveWard(current).catch(() => {});
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   const persist = useCallback(async (next: Ward) => {

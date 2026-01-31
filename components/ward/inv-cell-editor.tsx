@@ -9,6 +9,7 @@ import { Text } from '@/components/ui/text';
 import { TextInputArea } from '@/components/ward/text-input-area';
 import type { DxPlanContent, InvRow } from '@/lib/types';
 import { useCallback } from 'react';
+import { useWindowDimensions } from 'react-native';
 
 type InvColumnKey = 'date' | 'investigation' | 'findings';
 
@@ -17,6 +18,8 @@ const COLUMN_LABELS: Record<InvColumnKey, string> = {
   investigation: 'Investigation',
   findings: 'Findings',
 };
+
+const NARROW_BREAKPOINT = 520;
 
 export interface InvCellEditorProps {
   open: boolean;
@@ -44,6 +47,8 @@ export function InvCellEditor({
   onSave,
   onPenModeChange,
 }: InvCellEditorProps) {
+  const { width } = useWindowDimensions();
+  const isNarrow = width < NARROW_BREAKPOINT;
   const value = rowToDxPlan(row, column);
   const label = COLUMN_LABELS[column];
 
@@ -55,9 +60,13 @@ export function InvCellEditor({
     [onSave, onOpenChange]
   );
 
+  const contentClassName = isNarrow
+    ? 'absolute bottom-0 left-0 right-0 max-h-[85%] rounded-t-2xl border-t border-border p-4'
+    : 'max-h-[85%] p-4 sm:max-w-lg';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85%] p-4 sm:max-w-lg">
+      <DialogContent className={contentClassName}>
         <DialogHeader>
           <DialogTitle>
             <Text className="text-base font-semibold text-foreground">
@@ -71,6 +80,8 @@ export function InvCellEditor({
           onChange={handleChange}
           onPenModeChange={onPenModeChange}
           placeholder={`Type or draw ${label.toLowerCase()}...`}
+          sectionName={label}
+          initialEditing
         />
       </DialogContent>
     </Dialog>

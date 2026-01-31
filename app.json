@@ -3,7 +3,7 @@
     "name": "RoundsHub",
     "slug": "rounds-hub",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "rounds-hub",
     "userInterfaceStyle": "automatic",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f0fdf9"
+      "backgroundColor": "#0d9488"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -22,8 +22,8 @@
     "android": {
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0d9488"
       }
     },
     "web": {

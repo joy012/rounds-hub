@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
+import { ConsentModal } from '@/components/ward/modal-confirmation';
 import { THEME } from '@/lib/theme';
 import type { DxPlanContent } from '@/lib/types';
 import { Eraser, Pencil, Save } from 'lucide-react-native';
@@ -20,6 +21,8 @@ export interface TextInputAreaProps {
   placeholder?: string;
   /** Section name for toast, e.g. "Dx" or "Plan" */
   sectionName?: string;
+  /** When true, start in edit mode (e.g. when opened in a modal) */
+  initialEditing?: boolean;
 }
 
 export function TextInputArea({
@@ -29,19 +32,39 @@ export function TextInputArea({
   onPenModeChange,
   placeholder = 'Type or draw...',
   sectionName,
+  initialEditing = false,
 }: TextInputAreaProps) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
   const penColor = theme.foreground;
   const bgColor = colorScheme === 'dark' ? theme.card : theme.background;
 
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(initialEditing);
   const [draftText, setDraftText] = useState(value?.text ?? '');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const signatureRef = useRef<SignatureViewRef>(null);
+  const draftRef = useRef(draftText);
+  const valueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+
+  draftRef.current = draftText;
+  valueRef.current = value;
+  onChangeRef.current = onChange;
 
   useEffect(() => {
     setDraftText(value?.text ?? '');
   }, [value?.text]);
+
+  // Auto-save draft text when user navigates away (e.g. back) so no data is lost
+  useEffect(() => {
+    return () => {
+      const draft = draftRef.current ?? '';
+      const current = valueRef.current?.text ?? '';
+      if (draft.trim() !== current.trim()) {
+        onChangeRef.current({ text: draft.trim() || undefined, image: valueRef.current?.image });
+      }
+    };
+  }, []);
 
   const text = value?.text ?? '';
   const image = value?.image;
@@ -87,9 +110,14 @@ export function TextInputArea({
   }, []);
 
   const handleClearCanvas = useCallback(() => {
+    setShowClearConfirm(false);
     signatureRef.current?.clearSignature();
     onChange({ text: draftText.trim() || undefined, image: undefined });
   }, [draftText, onChange]);
+
+  const handleRequestClearCanvas = useCallback(() => {
+    setShowClearConfirm(true);
+  }, []);
 
   const handleStartEdit = useCallback(() => {
     setIsEditing(true);
@@ -204,12 +232,23 @@ export function TextInputArea({
             <Text variant="small">Eraser</Text>
           </Button>
           {image ? (
-            <Button size="sm" variant="outline" onPress={handleClearCanvas}>
+            <Button size="sm" variant="outline" onPress={handleRequestClearCanvas}>
               <Text variant="small">Clear drawing</Text>
             </Button>
           ) : null}
         </View>
       </View>
+
+      <ConsentModal
+        open={showClearConfirm}
+        onOpenChange={setShowClearConfirm}
+        title="Clear drawing?"
+        description="This will remove the drawing. You can draw again after clearing."
+        confirmText="Clear"
+        cancelText="Cancel"
+        variant="delete"
+        onConfirm={handleClearCanvas}
+      />
     </View>
   );
 }

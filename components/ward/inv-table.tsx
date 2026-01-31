@@ -62,11 +62,13 @@ function InvCell({
 }) {
   const content = getCellContent(row, columnKey);
 
+  const style = width > 0 ? { width } : { flex: 1 };
+
   return (
     <Pressable
       onPress={onPress}
       className="min-h-10 justify-center border-r border-border p-2 last:border-r-0 active:bg-muted/50"
-      style={{ width }}
+      style={style}
     >
       {content.image ? (
         <View className="aspect-video overflow-hidden rounded">
@@ -170,11 +172,18 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
     : null;
 
   return (
-    <View className="gap-2">
+      <View className="gap-2">
       <View className="flex-row flex-wrap items-center justify-between gap-1.5">
-        <Text variant="small" className="font-medium text-muted-foreground">
-          Investigations
-        </Text>
+        <View className="flex-1">
+          <Text variant="small" className="font-medium text-muted-foreground">
+            Investigations
+          </Text>
+          {!isTablet && (
+            <Text variant="small" className="mt-0.5 text-xs text-muted-foreground">
+              Long-press a row to remove it
+            </Text>
+          )}
+        </View>
         <View className="flex-row gap-2">
           <Button size="sm" onPress={addRow} className="bg-primary">
             <Icon as={Plus} size={16} />
@@ -383,6 +392,7 @@ function InvTableRow({
   onHeightChange,
   onCellPress,
   onRemove,
+  isTablet,
 }: {
   row: InvRow;
   columnWidths: ColumnWidths;
@@ -390,6 +400,7 @@ function InvTableRow({
   onHeightChange: (height: number) => void;
   onCellPress: (column: 'date' | 'investigation' | 'findings') => void;
   onRemove: () => void;
+  isTablet: boolean;
 }) {
   const startHeight = useRef(height);
 
@@ -404,13 +415,13 @@ function InvTableRow({
       runOnJS(onHeightChange)(newHeight);
     });
 
-  return (
-    <View className="border-b border-border last:border-b-0">
-      <View
-        className="flex-row"
-        style={{ minHeight: height }}
-      >
-        {COLUMN_KEYS.map((key) => (
+  const rowContent = (
+    <View
+      className="flex-row"
+      style={{ minHeight: height }}
+    >
+      {COLUMN_KEYS.map((key) =>
+        isTablet ? (
           <View key={key} className="flex-shrink-0" style={{ width: columnWidths[key as keyof ColumnWidths] }}>
             <InvCell
               row={row}
@@ -419,7 +430,22 @@ function InvTableRow({
               onPress={() => onCellPress(key as 'date' | 'investigation' | 'findings')}
             />
           </View>
-        ))}
+        ) : (
+          <Pressable
+            key={key}
+            className="min-w-0 flex-1 justify-center border-r border-border p-2 last:border-r-0 active:bg-muted/50"
+            onPress={() => onCellPress(key as 'date' | 'investigation' | 'findings')}
+          >
+            <InvCell
+              row={row}
+              columnKey={key}
+              width={0}
+              onPress={() => onCellPress(key as 'date' | 'investigation' | 'findings')}
+            />
+          </Pressable>
+        )
+      )}
+      {isTablet && (
         <View
           className="flex-shrink-0 items-center justify-center border-l border-border p-1"
           style={{ width: DELETE_BUTTON_WIDTH }}
@@ -433,7 +459,25 @@ function InvTableRow({
             <Icon as={Trash2} size={16} className="text-destructive" />
           </Button>
         </View>
-      </View>
+      )}
+    </View>
+  );
+
+  if (!isTablet) {
+    return (
+      <Pressable
+        className="border-b border-border last:border-b-0 active:opacity-95"
+        onLongPress={onRemove}
+        delayLongPress={400}
+      >
+        {rowContent}
+      </Pressable>
+    );
+  }
+
+  return (
+    <View className="border-b border-border last:border-b-0">
+      {rowContent}
       <GestureDetector gesture={panGesture}>
         <View
           className="h-2 items-center justify-center bg-muted/30 dark:bg-muted/20"

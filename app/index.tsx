@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { useWard } from '@/contexts/ward-context';
 import type { Bed } from '@/lib/types';
+import { cn } from '@/lib/utils';
 import {
   BedDouble,
   Hash,
@@ -26,7 +27,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Toast from 'react-native-toast-message';
 import { Stack, useRouter } from 'expo-router';
 
-const BEDS_PER_ROW = 4;
 const ADD_OPTIONS = [1, 2, 3] as const;
 const ROW_GAP = 8;
 const COL_GAP = 8;
@@ -34,10 +34,19 @@ const CONTENT_PX = 16;
 const TABLET_BREAKPOINT = 600;
 const ADD_BUTTON_WIDTH_TABLET = 80;
 
+/** Beds per row by layout width (portrait/landscape). */
+function getBedsPerRow(width: number): number {
+  if (width < 400) return 3;
+  if (width < 600) return 4;
+  if (width < 800) return 5;
+  return 6;
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const isTablet = windowWidth >= TABLET_BREAKPOINT;
+  const bedsPerRow = getBedsPerRow(windowWidth);
   const router = useRouter();
   const { colorScheme, toggleColorScheme } = useColorScheme();
   const { ward, isLoading, updateTitle, updateWardNumber, addBeds, deleteBed, dischargePatient } =
@@ -59,14 +68,14 @@ export default function HomeScreen() {
 
   const gridRows = useMemo(() => {
     const rows: (Bed | null)[][] = [];
-    for (let i = 0; i < beds.length; i += BEDS_PER_ROW) {
-      const row: (Bed | null)[] = beds.slice(i, i + BEDS_PER_ROW);
-      while (row.length < BEDS_PER_ROW) row.push(null);
+    for (let i = 0; i < beds.length; i += bedsPerRow) {
+      const row: (Bed | null)[] = beds.slice(i, i + bedsPerRow);
+      while (row.length < bedsPerRow) row.push(null);
       rows.push(row);
     }
-    if (rows.length === 0) rows.push(Array(BEDS_PER_ROW).fill(null));
+    if (rows.length === 0) rows.push(Array(bedsPerRow).fill(null));
     return rows;
-  }, [beds]);
+  }, [beds, bedsPerRow]);
 
   const handleEdit = useCallback(() => {
     setTitleInput(title);
@@ -82,7 +91,7 @@ export default function HomeScreen() {
     setTitleInput('');
     setWardInput('');
     setEditMode(false);
-    Toast.show({ type: 'success', text1: 'Saved' });
+    Toast.show({ type: 'success', text1: 'Saved', position: 'top' });
   }, [titleInput, wardInput, title, updateTitle, updateWardNumber]);
 
   const handleCancelEdit = useCallback(() => {
@@ -94,7 +103,7 @@ export default function HomeScreen() {
   const handleAddBeds = useCallback(
     (count: number) => {
       addBeds(count);
-      Toast.show({ type: 'success', text1: `Added ${count} bed(s)` });
+      Toast.show({ type: 'success', text1: `Added ${count} bed(s)`, position: 'top' });
     },
     [addBeds]
   );
@@ -103,24 +112,24 @@ export default function HomeScreen() {
     if (!confirmDeleteBedId) return;
     await deleteBed(confirmDeleteBedId);
     setConfirmDeleteBedId(null);
-    Toast.show({ type: 'success', text1: 'Bed removed' });
+    Toast.show({ type: 'success', text1: 'Bed removed', position: 'top' });
   }, [confirmDeleteBedId, deleteBed]);
 
   const handleConfirmDischarge = useCallback(async () => {
     if (!confirmDischargeBedId) return;
     await dischargePatient(confirmDischargeBedId);
     setConfirmDischargeBedId(null);
-    Toast.show({ type: 'success', text1: 'Patient discharged' });
+    Toast.show({ type: 'success', text1: 'Patient discharged', position: 'top' });
   }, [confirmDischargeBedId, dischargePatient]);
 
   const handleCustomAddSubmit = useCallback(() => {
     const num = parseInt(customAddValue, 10);
     if (!Number.isFinite(num) || num < 1) {
-      Toast.show({ type: 'error', text1: 'Enter a number from 1 to 50' });
+      Toast.show({ type: 'error', text1: 'Enter a number from 1 to 50', position: 'top' });
       return;
     }
     if (num > 50) {
-      Toast.show({ type: 'error', text1: 'Maximum 50 beds at a time' });
+      Toast.show({ type: 'error', text1: 'Maximum 50 beds at a time', position: 'top' });
       return;
     }
     handleAddBeds(num);
@@ -302,28 +311,40 @@ export default function HomeScreen() {
                           }
                           className="w-full"
                         />
-                        <View className="mt-2 flex-row items-center gap-1.5">
+                        <View className="mt-2 flex-row flex-shrink-0 flex-wrap items-center gap-1.5">
                           {bed.patient && (
                             <Button
-                              size="sm"
+                              size={isTablet ? 'sm' : 'icon'}
                               variant="outline"
-                              className="h-8 min-w-0 flex-1 border-info/50 px-2"
+                              className={cn(
+                                'h-8 border-info/50',
+                                isTablet ? 'min-w-0 flex-1 px-2' : 'w-8 flex-shrink-0'
+                              )}
                               onPress={() => setConfirmDischargeBedId(bed.id)}
                             >
                               <Icon as={UserMinus} size={14} className="text-info" />
-                              <Text variant="small" className="text-xs" numberOfLines={1}>Out</Text>
+                              {isTablet && (
+                                <Text variant="small" className="text-xs" numberOfLines={1}>
+                                  Out
+                                </Text>
+                              )}
                             </Button>
                           )}
                           <Button
-                            size="sm"
+                            size={isTablet ? 'sm' : 'icon'}
                             variant="outline"
-                            className="h-8 min-w-0 flex-1 border-destructive/50 px-2"
+                            className={cn(
+                              'h-8 border-destructive/50',
+                              isTablet ? 'min-w-0 flex-1 px-2' : 'w-8 flex-shrink-0'
+                            )}
                             onPress={() => setConfirmDeleteBedId(bed.id)}
                           >
                             <Icon as={Trash2} size={14} className="text-destructive" />
-                            <Text variant="small" className="text-xs text-destructive" numberOfLines={1}>
-                              Del
-                            </Text>
+                            {isTablet && (
+                              <Text variant="small" className="text-xs text-destructive" numberOfLines={1}>
+                                Del
+                              </Text>
+                            )}
                           </Button>
                         </View>
                       </>

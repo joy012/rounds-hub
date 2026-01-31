@@ -44,8 +44,8 @@ export function BedCard({ bed, onPress, className }: BedCardProps) {
             : 'border-border/80 bg-bed-empty dark:border-border dark:bg-bed-empty'
         )}
       >
-        {/* Order: number → icon → empty/fill indicator */}
-        <View className="flex-1 flex-row items-center gap-3 px-3 py-3">
+        {/* Column: number → icon → info (responsive, no overflow) */}
+        <View className="flex-1 flex-col items-stretch justify-center gap-2 px-3 py-3">
           {/* 1. Number */}
           <Text
             className={cn(
@@ -59,7 +59,7 @@ export function BedCard({ bed, onPress, className }: BedCardProps) {
           {/* 2. Icon */}
           <View
             className={cn(
-              'rounded-lg p-2',
+              'self-start rounded-lg p-2',
               hasData
                 ? 'bg-primary/20 dark:bg-primary/25'
                 : 'bg-muted/40 dark:bg-muted/50'
@@ -71,8 +71,8 @@ export function BedCard({ bed, onPress, className }: BedCardProps) {
               className={hasData ? 'text-primary' : 'text-muted-foreground'}
             />
           </View>
-          {/* 3. Empty / Fill indicator */}
-          <View className="min-w-0 flex-1 flex-row flex-wrap items-center gap-1">
+          {/* 3. Info: Empty or indicators (wraps, fully visible) */}
+          <View className="min-w-0 flex-row flex-wrap items-center gap-1">
             {!hasData ? (
               <Text
                 variant="small"
