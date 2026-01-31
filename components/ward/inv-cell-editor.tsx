@@ -2,6 +2,7 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { TextInputArea } from '@/components/ward/text-input-area';
 import type { DxPlanContent, InvRow } from '@/lib/types';
+import { X } from 'lucide-react-native';
 import { useCallback } from 'react';
 import {
   Modal,
@@ -11,7 +12,6 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { X } from 'lucide-react-native';
 
 type InvColumnKey = 'date' | 'investigation' | 'findings';
 
