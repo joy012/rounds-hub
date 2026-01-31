@@ -25,26 +25,30 @@
 ### Ward & bed management
 
 - **Department & ward** — Set a department name (e.g. Surgery) and ward number. Edit anytime from the home screen.
-- **Bed grid** — View all beds in a clear grid. Add beds in bulk (+1, +2, +3) or a custom count (1–50). Remove beds when needed.
-- **Empty vs occupied** — Each card shows bed number, icon, and status (Empty or patient indicators: Pt, Dx, Pl, Inv).
+- **Bed grid** — View all beds in a responsive grid (3–6 beds per row by screen size). New wards start with 12 beds.
+- **Add beds** — Quick add (+1, +2, +3) or custom count (1–50). Remove beds when needed.
+- **Empty vs occupied** — Each card shows bed number and status (empty or patient present). Tap a bed to open details.
 
 ### Patient & clinical notes
 
-- **Per-bed patient info** — Name, age, gender.
-- **Dx & Plan** — Diagnosis and plan with optional text and handwriting/sketch (stored as base64 on device).
-- **Investigations** — Table of date, investigation, and findings with optional images.
+- **Patient info** — Name, age, gender, admission date, and discharge date (with date pickers).
+- **Dx (Diagnosis)** — Text notes and optional handwriting/sketch (stored as base64 on device).
+- **Plan** — Text notes and optional handwriting/sketch (stored as base64 on device).
+- **Investigations** — Table of date, investigation, and findings. Each cell supports text and optional images. Add or remove rows; resize columns and rows for comfortable editing.
 
 ### Actions
 
-- **Discharge** — Clear patient data from a bed; bed stays for reuse.
-- **Delete bed** — Remove a bed (and its patient data) from the ward.
+- **Discharge** — Clear patient data from a bed; the bed stays for reuse. Available from the home grid and bed detail screen.
+- **Delete bed** — Remove a bed and its patient data from the ward (with confirmation).
 - **Export to PDF** — Generate a PDF for a bed (patient summary, Dx, Plan, Investigations) and share or save via the system share sheet.
 
 ### Experience
 
 - **Safe area** — Layout respects device notch, status bar, and navigation so content doesn’t overlap system UI.
-- **Theme** — Light/dark mode with a single tap.
-- **Responsive** — Optimized for phone and tablet (e.g. fixed-width add buttons on larger screens).
+- **Theme** — Light/dark mode with a single tap (NativeWind).
+- **Responsive** — Optimized for phone and tablet (e.g. fixed-width add buttons and adaptive bed grid on larger screens).
+- **Toasts** — Clear feedback for save, add beds, discharge, delete, and export actions.
+- **Splash screen** — Branded launch screen (Expo Splash Screen).
 - **Accessible** — Clear labels, touch targets, and structure for everyday use in busy environments.
 
 ---
@@ -52,11 +56,16 @@
 ## Tech stack
 
 - **[Expo](https://expo.dev/)** (SDK 54) — Build and tooling for iOS, Android, and Web
-- **[React Native](https://reactnative.dev/)** — UI and native APIs
-- **[Expo Router](https://expo.dev/router)** — File-based routing
-- **[NativeWind](https://nativewind.dev/)** — Tailwind-style styling
-- **[React Native Reusables](https://reactnativereusables.com)** — UI primitives (buttons, cards, inputs, etc.)
+- **[React Native](https://reactnative.dev/)** (0.81) — UI and native APIs
+- **[React](https://react.dev/)** (19) — UI and hooks
+- **[Expo Router](https://expo.dev/router)** (v6) — File-based routing with typed routes
+- **[NativeWind](https://nativewind.dev/)** (v4) — Tailwind-style styling
+- **[React Native Reusables](https://reactnativereusables.com)** / **@rn-primitives** — UI components (Button, Card, Input, Select, Dialog, etc.)
 - **[AsyncStorage](https://react-native-async-storage.github.io/async-storage/)** — Local persistence (ward data)
+- **expo-print**, **expo-sharing**, **expo-file-system** — PDF generation and share
+- **react-native-signature-canvas** — Handwriting/sketch for Dx and Plan
+- **react-native-toast-message** — In-app feedback toasts
+- **react-native-gesture-handler**, **react-native-reanimated** — Gestures and animations
 - **TypeScript** — Typed models and app logic
 
 ---
@@ -93,19 +102,21 @@ You can develop and test in **Expo Go** without a custom native build.
 
 ### Scripts
 
-| Command        | Description                    |
-|----------------|--------------------------------|
-| `pnpm dev`     | Start Expo dev server          |
-| `pnpm android` | Start and open Android         |
-| `pnpm ios`     | Start and open iOS             |
-| `pnpm web`     | Start and open web             |
-| `pnpm clean`   | Remove `.expo` and `node_modules` |
+| Command              | Description                     |
+|----------------------|---------------------------------|
+| `pnpm dev`           | Start Expo dev server           |
+| `pnpm android`       | Start and open Android         |
+| `pnpm ios`           | Start and open iOS             |
+| `pnpm web`           | Start and open web             |
+| `pnpm prebuild:clean`| Clean prebuild (native folders) |
+| `pnpm build:apk`     | Android release APK (prebuild + Gradle) |
+| `pnpm clean`         | Remove `.expo` and `node_modules` |
 
 ---
 
 ## Data & privacy
 
-- **Storage** — A single key (`ward_data`) in AsyncStorage holds the whole ward (department, ward number, list of beds and optional patient data). No other keys are used for this feature.
+- **Storage** — A single key (`ward_data`) in AsyncStorage holds the whole ward: department, ward number, and list of beds with optional patient data (name, age, gender, admission/discharge dates, Dx/Plan text and images, investigations table with optional per-cell images). No other keys are used for this feature.
 - **No telemetry** — The app does not send analytics or usage data by default.
 - **No account** — There is no login or user account; everything is local to the device.
 
@@ -115,13 +126,18 @@ You can develop and test in **Expo Go** without a custom native build.
 
 ```
 app/
-  _layout.tsx      # Root layout, theme, providers
-  index.tsx        # Home: ward header, add beds, bed grid
-  bed/[id].tsx     # Bed detail: patient form, Dx, Plan, Investigations, PDF export
-assets/images/     # App icon, logo, splash
-components/        # UI and ward-specific components
-contexts/          # Ward state (load/save from AsyncStorage)
-lib/               # Types, storage, PDF export, theme, utils
+  _layout.tsx           # Root: GestureHandler, SafeArea, WardProvider, Stack, Toast, splash hide
+  (theme)/
+    _layout.tsx         # Theme wrapper (light/dark), StatusBar
+    index.tsx            # Home: ward header, department/ward card, add beds, bed grid
+    bed/[id].tsx         # Bed detail: patient form, Dx, Plan, Investigations, PDF export
+assets/images/          # App icon, logo, splash
+components/
+  ui/                    # Buttons, cards, inputs, select, dialog, date-picker-field, etc.
+  ward/                  # bed-card, patient-form, inv-table, inv-cell-editor, text-input-area, modal-confirmation
+contexts/
+  ward-context.tsx       # Ward state (load/save from AsyncStorage)
+lib/                     # types, storage, pdf-export, theme, utils, bed-utils
 ```
 
 ---
@@ -130,7 +146,7 @@ lib/               # Types, storage, PDF export, theme, utils
 
 - [Expo documentation](https://docs.expo.dev/)
 - [React Native documentation](https://reactnative.dev/docs/getting-started)
-- [Nativewind](https://nativewind.dev/)
+- [NativeWind](https://nativewind.dev/)
 - [React Native Reusables](https://reactnativereusables.com)
 
 ---
