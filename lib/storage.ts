@@ -35,7 +35,7 @@ function parseBedFromJson(value: JsonValue): Bed | null {
       }));
       bed.patient = {
         ...(typeof p.name === 'string' && { name: p.name }),
-        ...(typeof p.age === 'number' && p.age >= 0 && p.age <= 150 && { age: p.age }),
+        ...(typeof p.age === 'number' && p.age >= 1 && p.age <= 150 && { age: p.age }),
         ...(p.gender === 'Male' || p.gender === 'Female' || p.gender === 'Other' ? { gender: p.gender } : {}),
         ...(dxObj && { dx: { text: typeof dxObj.text === 'string' ? dxObj.text : undefined, image: typeof dxObj.image === 'string' ? dxObj.image : undefined } }),
         ...(planObj && { plan: { text: typeof planObj.text === 'string' ? planObj.text : undefined, image: typeof planObj.image === 'string' ? planObj.image : undefined } }),

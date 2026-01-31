@@ -101,11 +101,18 @@ export function TextInputArea({
     signatureRef.current?.readSignature();
   }, []);
 
+  const PEN_MIN = 0.5;
+  const PEN_MAX = 2.5;
+  const ERASER_MIN = 14;
+  const ERASER_MAX = 32;
+
   const handleEraser = useCallback(() => {
+    signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
     signatureRef.current?.erase();
   }, []);
 
   const handleDraw = useCallback(() => {
+    signatureRef.current?.changePenSize(PEN_MIN, PEN_MAX);
     signatureRef.current?.draw();
   }, []);
 
@@ -161,7 +168,7 @@ export function TextInputArea({
         ) : (
           <View className="min-h-12 items-center justify-center rounded-xl border border-dashed border-border dark:border-border">
             <Text variant="small" className="text-muted-foreground">
-              Tap Edit to add notes
+              {sectionName ? `No ${sectionName} added` : `No ${label} added`}
             </Text>
           </View>
         )}
@@ -177,7 +184,7 @@ export function TextInputArea({
         </Label>
         <View className="flex-row gap-2">
           <Button size="sm" variant="outline" onPress={handleDoneEdit}>
-            <Text variant="small">Done</Text>
+            <Text variant="small">Cancel</Text>
           </Button>
           <Button size="sm" onPress={handleSave} className="bg-primary">
             <Icon as={Save} size={14} />
@@ -207,6 +214,8 @@ export function TextInputArea({
             descriptionText=""
             penColor={penColor}
             backgroundColor={bgColor}
+            minWidth={PEN_MIN}
+            maxWidth={PEN_MAX}
             webStyle={`
               .m-signature-pad { box-shadow: none; border: none; background: ${bgColor}; }
               .m-signature-pad--body { border: none; min-height: 140px; background: ${bgColor}; }

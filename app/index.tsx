@@ -28,11 +28,12 @@ import Toast from 'react-native-toast-message';
 import { Stack, useRouter } from 'expo-router';
 
 const ADD_OPTIONS = [1, 2, 3] as const;
-const ROW_GAP = 8;
+const ROW_GAP = 16;
 const COL_GAP = 8;
 const CONTENT_PX = 16;
 const TABLET_BREAKPOINT = 600;
 const ADD_BUTTON_WIDTH_TABLET = 80;
+const CUSTOM_BUTTON_WIDTH_TABLET = 110;
 
 /** Beds per row by layout width (portrait/landscape). */
 function getBedsPerRow(width: number): number {
@@ -159,18 +160,25 @@ export default function HomeScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
-          {/* App header: logo + RoundsHub — respects safe area via SafeAreaView */}
+          {/* App header: logo + RoundsHub (logo has max height and aspect ratio, smaller on tablet) */}
           <View
             className="mb-4 flex-row items-center justify-between border-border border-b pb-3 dark:border-border"
             style={{ paddingTop: 4 }}
           >
             <View className="min-w-0 flex-1 flex-row items-center gap-3">
-              <Image
-                source={require('@/assets/images/icon.png')}
-                className="h-9 w-9 rounded-lg"
-                resizeMode="cover"
-                accessibilityLabel="RoundsHub logo"
-              />
+              <View
+                className={cn(
+                  'aspect-square rounded-lg overflow-hidden',
+                  isTablet ? 'h-8 w-8' : 'h-9 w-9'
+                )}
+              >
+                <Image
+                  source={require('@/assets/images/icon.png')}
+                  className="h-full w-full"
+                  resizeMode="contain"
+                  accessibilityLabel="RoundsHub logo"
+                />
+              </View>
               <Text className="text-xl font-bold tracking-tight text-foreground">
                 RoundsHub
               </Text>
@@ -268,13 +276,13 @@ export default function HomeScreen() {
                     onPress={() => handleAddBeds(n)}
                     className="h-10 w-full bg-primary"
                   >
-                    <Icon as={Plus} size={18} />
-                    <Text variant="small" className="font-semibold">+{n}</Text>
+                    <Icon as={Plus} size={18} className="text-primary-foreground" />
+                    <Text variant="small" className="font-semibold text-primary-foreground">{n}</Text>
                   </Button>
                 </View>
               ))}
               <View
-                style={isTablet ? { width: ADD_BUTTON_WIDTH_TABLET } : undefined}
+                style={isTablet ? { width: CUSTOM_BUTTON_WIDTH_TABLET } : { minWidth: 90 }}
                 className={isTablet ? '' : 'flex-1'}
               >
                 <Button
@@ -340,11 +348,11 @@ export default function HomeScreen() {
                             onPress={() => setConfirmDeleteBedId(bed.id)}
                           >
                             <Icon as={Trash2} size={14} className="text-destructive" />
-                            {isTablet && (
-                              <Text variant="small" className="text-xs text-destructive" numberOfLines={1}>
-                                Del
-                              </Text>
-                            )}
+{isTablet && (
+                                <Text variant="small" className="text-xs text-destructive" numberOfLines={1}>
+                                  Delete
+                                </Text>
+                              )}
                           </Button>
                         </View>
                       </>

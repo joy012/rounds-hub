@@ -178,7 +178,7 @@ export default function BedDetailsScreen() {
               </CardTitle>
             </View>
           </CardHeader>
-          <CardContent className="p-3">
+          <CardContent className="px-2 py-0">
             <PatientForm patient={patient} onChange={handlePatientChange} />
           </CardContent>
         </Card>
@@ -194,7 +194,7 @@ export default function BedDetailsScreen() {
               </CardTitle>
             </View>
           </CardHeader>
-          <CardContent className="p-3">
+          <CardContent className="px-2 py-0">
             <TextInputArea
               label="Diagnosis"
               value={patient?.dx}
@@ -217,7 +217,7 @@ export default function BedDetailsScreen() {
               </CardTitle>
             </View>
           </CardHeader>
-          <CardContent className="p-3">
+          <CardContent className="px-2 py-0">
             <InvTable
               rows={invRows}
               onChange={setInvRows}

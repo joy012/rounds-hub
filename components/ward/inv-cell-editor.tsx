@@ -1,15 +1,17 @@
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { TextInputArea } from '@/components/ward/text-input-area';
 import type { DxPlanContent, InvRow } from '@/lib/types';
 import { useCallback } from 'react';
-import { useWindowDimensions } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { X } from 'lucide-react-native';
 
 type InvColumnKey = 'date' | 'investigation' | 'findings';
 
@@ -19,7 +21,7 @@ const COLUMN_LABELS: Record<InvColumnKey, string> = {
   findings: 'Findings',
 };
 
-const NARROW_BREAKPOINT = 520;
+const BOTTOM_SHEET_HEIGHT_RATIO = 0.8;
 
 export interface InvCellEditorProps {
   open: boolean;
@@ -47,8 +49,8 @@ export function InvCellEditor({
   onSave,
   onPenModeChange,
 }: InvCellEditorProps) {
-  const { width } = useWindowDimensions();
-  const isNarrow = width < NARROW_BREAKPOINT;
+  const { height } = useWindowDimensions();
+  const sheetHeight = Math.round(height * BOTTOM_SHEET_HEIGHT_RATIO);
   const value = rowToDxPlan(row, column);
   const label = COLUMN_LABELS[column];
 
@@ -60,30 +62,63 @@ export function InvCellEditor({
     [onSave, onOpenChange]
   );
 
-  const contentClassName = isNarrow
-    ? 'absolute bottom-0 left-0 right-0 max-h-[85%] rounded-t-2xl border-t border-border p-4'
-    : 'max-h-[85%] p-4 sm:max-w-lg';
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={contentClassName}>
-        <DialogHeader>
-          <DialogTitle>
-            <Text className="text-base font-semibold text-foreground">
-              {label}
-            </Text>
-          </DialogTitle>
-        </DialogHeader>
-        <TextInputArea
-          label={label}
-          value={value}
-          onChange={handleChange}
-          onPenModeChange={onPenModeChange}
-          placeholder={`Type or draw ${label.toLowerCase()}...`}
-          sectionName={label}
-          initialEditing
+    <Modal
+      visible={open}
+      transparent
+      animationType="slide"
+      onRequestClose={() => onOpenChange(false)}
+    >
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <Pressable
+          style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onPress={() => onOpenChange(false)}
+          accessibilityLabel="Close"
+          accessibilityRole="button"
         />
-      </DialogContent>
-    </Dialog>
+        <View
+          style={{
+            height: sheetHeight,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            backgroundColor: 'hsl(var(--background))',
+            borderTopWidth: 1,
+            borderLeftWidth: 1,
+            borderRightWidth: 1,
+            borderColor: 'hsl(var(--border))',
+            overflow: 'hidden',
+          }}
+        >
+          <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
+            <Text className="text-base font-semibold text-foreground">{label}</Text>
+            <Pressable
+              onPress={() => onOpenChange(false)}
+              hitSlop={12}
+              className="rounded p-1 active:opacity-70"
+              accessibilityLabel="Close"
+              accessibilityRole="button"
+            >
+              <Icon as={X} size={20} className="text-muted-foreground" />
+            </Pressable>
+          </View>
+          <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+          >
+            <TextInputArea
+              label={label}
+              value={value}
+              onChange={handleChange}
+              onPenModeChange={onPenModeChange}
+              placeholder={`Type or draw ${label.toLowerCase()}...`}
+              sectionName={label}
+              initialEditing
+            />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }

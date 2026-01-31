@@ -18,14 +18,13 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { GripHorizontal, GripVertical, Pen, Plus, Save, Trash2 } from 'lucide-react-native';
+import { GripHorizontal, GripVertical, Pen, Plus, Save } from 'lucide-react-native';
 
-const DELETE_BUTTON_WIDTH = 40;
 const MIN_COL_WIDTH = 60;
 const MAX_COL_WIDTH = 320;
-const DEFAULT_DATE_WIDTH = 100;
-const DEFAULT_INVESTIGATION_WIDTH = 100;
-const DEFAULT_FINDINGS_WIDTH = 160;
+const RESIZER_WIDTH = 8;
+/** Default column ratios: first two same, third larger. Sum = 1. */
+const DEFAULT_COL_RATIOS = { date: 0.25, investigation: 0.25, findings: 0.5 };
 const TABLET_BREAKPOINT = 600;
 
 export interface InvTableProps {
@@ -89,8 +88,12 @@ function InvCell({
       ) : (
         <View className="flex-row items-center gap-1">
           <Icon as={Pen} size={12} className="text-muted-foreground" />
-          <Text variant="small" className="text-muted-foreground">
-            Tap to add
+          <Text variant="small" className="text-muted-foreground" numberOfLines={2}>
+            {columnKey === 'date'
+              ? 'No date added'
+              : columnKey === 'investigation'
+                ? 'No investigation added'
+                : 'No findings added'}
           </Text>
         </View>
       )}
@@ -107,11 +110,7 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
   );
   const [draftRows, setDraftRows] = useState<InvRow[]>(initialRows);
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
-  const [columnWidths, setColumnWidths] = useState({
-    date: DEFAULT_DATE_WIDTH,
-    investigation: DEFAULT_INVESTIGATION_WIDTH,
-    findings: DEFAULT_FINDINGS_WIDTH,
-  });
+  const [columnRatios, setColumnRatios] = useState(DEFAULT_COL_RATIOS);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
@@ -178,11 +177,9 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
           <Text variant="small" className="font-medium text-muted-foreground">
             Investigations
           </Text>
-          {!isTablet && (
-            <Text variant="small" className="mt-0.5 text-xs text-muted-foreground">
-              Long-press a row to remove it
-            </Text>
-          )}
+          <Text variant="small" className="mt-0.5 text-xs text-muted-foreground">
+            Long-press a row to remove it
+          </Text>
         </View>
         <View className="flex-row gap-2">
           <Button size="sm" onPress={addRow} className="bg-primary">
@@ -195,42 +192,41 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
           </Button>
         </View>
       </View>
-      <ScrollView
-        horizontal={isTablet}
-        showsHorizontalScrollIndicator={false}
-        className="overflow-hidden rounded-xl border border-border dark:border-border"
+      <View
+        className="w-full overflow-hidden rounded-xl border border-border dark:border-border"
+        style={isTablet ? { width: '100%' } : undefined}
       >
-        <View style={!isTablet ? { width } : undefined} className={!isTablet ? 'w-full' : ''}>
-          <View className="flex-row border-b border-border bg-primary/10 dark:bg-primary/15">
+        <ScrollView
+          horizontal={!isTablet}
+          showsHorizontalScrollIndicator={false}
+          style={!isTablet ? { width: '100%' } : undefined}
+        >
+          <View style={{ width, minWidth: width }} className="w-full">
             <InvTableHeader
-              columnWidths={columnWidths}
-              onColumnResize={setColumnWidths}
+              tableWidth={width}
+              columnRatios={columnRatios}
+              onColumnRatiosChange={setColumnRatios}
               isTablet={isTablet}
             />
-            {isTablet && (
-              <View
-                className="flex-shrink-0 items-center justify-center border-l border-border p-2"
-                style={{ width: DELETE_BUTTON_WIDTH }}
+            {draftRows.map((row) => (
+              <InvTableRow
+                key={row.id}
+                row={row}
+                tableWidth={width}
+                columnRatios={columnRatios}
+                height={getRowHeight(row.id)}
+                onHeightChange={(h) => {
+                  rowHeightsRef.current[row.id] = h;
+                  setRowHeights((prev) => ({ ...prev, [row.id]: h }));
+                }}
+                onCellPress={(col) => setEditingCell({ rowId: row.id, column: col })}
+                onRemove={() => setConfirmRemoveId(row.id)}
+                isTablet={isTablet}
               />
-            )}
+            ))}
           </View>
-          {draftRows.map((row) => (
-            <InvTableRow
-              key={row.id}
-              row={row}
-              columnWidths={columnWidths}
-              height={getRowHeight(row.id)}
-              onHeightChange={(h) => {
-                rowHeightsRef.current[row.id] = h;
-                setRowHeights((prev) => ({ ...prev, [row.id]: h }));
-              }}
-              onCellPress={(col) => setEditingCell({ rowId: row.id, column: col })}
-              onRemove={() => setConfirmRemoveId(row.id)}
-              isTablet={isTablet}
-            />
-          ))}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <InvCellEditor
         open={!!editingCell}
@@ -267,7 +263,7 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
   );
 }
 
-type ColumnWidths = { date: number; investigation: number; findings: number };
+type ColumnRatios = { date: number; investigation: number; findings: number };
 
 function ColumnResizer({
   onResize,
@@ -303,59 +299,67 @@ function ColumnResizer({
 }
 
 function InvTableHeader({
-  columnWidths,
-  onColumnResize,
+  tableWidth,
+  columnRatios,
+  onColumnRatiosChange,
   isTablet,
 }: {
-  columnWidths: ColumnWidths;
-  onColumnResize: React.Dispatch<React.SetStateAction<ColumnWidths>>;
+  tableWidth: number;
+  columnRatios: ColumnRatios;
+  onColumnRatiosChange: React.Dispatch<React.SetStateAction<ColumnRatios>>;
   isTablet: boolean;
 }) {
+  const contentWidth = tableWidth - 2 * RESIZER_WIDTH;
+  const toPx = useCallback(
+    (ratio: number) => Math.round(contentWidth * ratio),
+    [contentWidth]
+  );
+
   const resizeDateInvestigation = useCallback(
-    (delta: number) => {
-      onColumnResize((prev) => {
-        const newDate = Math.round(
-          Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, prev.date + delta))
-        );
-        const diff = newDate - prev.date;
-        const newInv = Math.round(
-          Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, prev.investigation - diff))
-        );
-        const actualDiff = prev.investigation - newInv;
+    (deltaPx: number) => {
+      onColumnRatiosChange((prev) => {
+        const minR = MIN_COL_WIDTH / contentWidth;
+        const maxR = MAX_COL_WIDTH / contentWidth;
+        const deltaR = deltaPx / contentWidth;
+        let newDate = prev.date + deltaR;
+        let newInv = prev.investigation - deltaR;
+        newDate = Math.min(maxR, Math.max(minR, newDate));
+        newInv = Math.min(maxR, Math.max(minR, newInv));
+        const sum = newDate + newInv + prev.findings;
         return {
-          date: prev.date + actualDiff,
-          investigation: newInv,
-          findings: prev.findings,
+          date: newDate / sum,
+          investigation: newInv / sum,
+          findings: prev.findings / sum,
         };
       });
     },
-    [onColumnResize]
+    [onColumnRatiosChange, contentWidth]
   );
 
   const resizeInvestigationFindings = useCallback(
-    (delta: number) => {
-      onColumnResize((prev) => {
-        const newInv = Math.round(
-          Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, prev.investigation + delta))
-        );
-        const diff = newInv - prev.investigation;
-        const newFind = Math.round(
-          Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, prev.findings - diff))
-        );
-        const actualDiff = prev.findings - newFind;
+    (deltaPx: number) => {
+      onColumnRatiosChange((prev) => {
+        const minR = MIN_COL_WIDTH / contentWidth;
+        const maxR = MAX_COL_WIDTH / contentWidth;
+        const deltaR = deltaPx / contentWidth;
+        let newInv = prev.investigation + deltaR;
+        let newFind = prev.findings - deltaR;
+        newInv = Math.min(maxR, Math.max(minR, newInv));
+        newFind = Math.min(maxR, Math.max(minR, newFind));
+        const sum = prev.date + newInv + newFind;
         return {
-          date: prev.date,
-          investigation: prev.investigation + actualDiff,
-          findings: newFind,
+          date: prev.date / sum,
+          investigation: newInv / sum,
+          findings: newFind / sum,
         };
       });
     },
-    [onColumnResize]
+    [onColumnRatiosChange, contentWidth]
   );
 
   if (!isTablet) {
     return (
-      <>
+      <View className="flex-row border-b border-border bg-primary/10 dark:bg-primary/15">
         <View className="min-w-0 flex-1 border-r border-border p-2">
           <Text variant="small" className="font-semibold text-foreground">Date</Text>
         </View>
@@ -365,21 +369,35 @@ function InvTableHeader({
         <View className="min-w-0 flex-1 border-r border-border p-2 last:border-r-0">
           <Text variant="small" className="font-semibold text-foreground">Findings</Text>
         </View>
-      </>
+      </View>
     );
   }
+
+  const dateW = toPx(columnRatios.date);
+  const invW = toPx(columnRatios.investigation);
+  const findingsW = toPx(columnRatios.findings);
+
   return (
     <>
-      <View className="flex-shrink-0 border-r border-border p-2" style={{ width: columnWidths.date }}>
-        <Text variant="small" className="font-semibold text-foreground">Date</Text>
+      {/* Resizer row: on top of header so header text doesn't break */}
+      <View className="flex-row border-b border-border bg-muted/30 dark:bg-muted/20">
+        <View style={{ width: dateW }} className="flex-shrink-0" />
+        <ColumnResizer onResize={resizeDateInvestigation} deltaSign={1} />
+        <View style={{ width: invW }} className="flex-shrink-0" />
+        <ColumnResizer onResize={resizeInvestigationFindings} deltaSign={1} />
+        <View style={{ width: findingsW }} className="flex-shrink-0" />
       </View>
-      <ColumnResizer onResize={resizeDateInvestigation} deltaSign={1} />
-      <View className="flex-shrink-0 border-r border-border p-2" style={{ width: columnWidths.investigation }}>
-        <Text variant="small" className="font-semibold text-foreground">Investigation</Text>
-      </View>
-      <ColumnResizer onResize={resizeInvestigationFindings} deltaSign={1} />
-      <View className="flex-shrink-0 border-r border-border p-2" style={{ width: columnWidths.findings }}>
-        <Text variant="small" className="font-semibold text-foreground">Findings</Text>
+      {/* Header row: column labels only */}
+      <View className="flex-row border-b border-border bg-primary/10 dark:bg-primary/15">
+        <View className="flex-shrink-0 border-r border-border p-2" style={{ width: dateW }}>
+          <Text variant="small" className="font-semibold text-foreground">Date</Text>
+        </View>
+        <View className="flex-shrink-0 border-r border-border p-2" style={{ width: invW }}>
+          <Text variant="small" className="font-semibold text-foreground">Investigation</Text>
+        </View>
+        <View className="flex-shrink-0 border-r border-border p-2 last:border-r-0" style={{ width: findingsW }}>
+          <Text variant="small" className="font-semibold text-foreground">Findings</Text>
+        </View>
       </View>
     </>
   );
@@ -387,7 +405,8 @@ function InvTableHeader({
 
 function InvTableRow({
   row,
-  columnWidths,
+  tableWidth,
+  columnRatios,
   height,
   onHeightChange,
   onCellPress,
@@ -395,7 +414,8 @@ function InvTableRow({
   isTablet,
 }: {
   row: InvRow;
-  columnWidths: ColumnWidths;
+  tableWidth: number;
+  columnRatios: ColumnRatios;
   height: number;
   onHeightChange: (height: number) => void;
   onCellPress: (column: 'date' | 'investigation' | 'findings') => void;
@@ -403,6 +423,15 @@ function InvTableRow({
   isTablet: boolean;
 }) {
   const startHeight = useRef(height);
+  const contentWidth = tableWidth - 2 * RESIZER_WIDTH;
+  const colWidths = useMemo(
+    () => ({
+      date: Math.round(contentWidth * columnRatios.date),
+      investigation: Math.round(contentWidth * columnRatios.investigation),
+      findings: Math.round(contentWidth * columnRatios.findings),
+    }),
+    [contentWidth, columnRatios]
+  );
 
   const panGesture = Gesture.Pan()
     .onStart(() => {
@@ -422,11 +451,11 @@ function InvTableRow({
     >
       {COLUMN_KEYS.map((key) =>
         isTablet ? (
-          <View key={key} className="flex-shrink-0" style={{ width: columnWidths[key as keyof ColumnWidths] }}>
+          <View key={key} className="flex-shrink-0" style={{ width: colWidths[key as keyof typeof colWidths] }}>
             <InvCell
               row={row}
               columnKey={key}
-              width={columnWidths[key as keyof ColumnWidths]}
+              width={colWidths[key as keyof typeof colWidths]}
               onPress={() => onCellPress(key as 'date' | 'investigation' | 'findings')}
             />
           </View>
@@ -445,21 +474,6 @@ function InvTableRow({
           </Pressable>
         )
       )}
-      {isTablet && (
-        <View
-          className="flex-shrink-0 items-center justify-center border-l border-border p-1"
-          style={{ width: DELETE_BUTTON_WIDTH }}
-        >
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            onPress={onRemove}
-          >
-            <Icon as={Trash2} size={16} className="text-destructive" />
-          </Button>
-        </View>
-      )}
     </View>
   );
 
@@ -476,7 +490,11 @@ function InvTableRow({
   }
 
   return (
-    <View className="border-b border-border last:border-b-0">
+    <Pressable
+      className="border-b border-border last:border-b-0"
+      onLongPress={onRemove}
+      delayLongPress={400}
+    >
       {rowContent}
       <GestureDetector gesture={panGesture}>
         <View
@@ -486,6 +504,6 @@ function InvTableRow({
           <Icon as={GripVertical} size={14} className="text-muted-foreground" />
         </View>
       </GestureDetector>
-    </View>
+    </Pressable>
   );
 }
