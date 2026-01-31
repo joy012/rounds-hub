@@ -7,6 +7,9 @@
     "android": "expo start -c --android",
     "ios": "expo start -c --ios",
     "web": "expo start -c --web",
+    "start:android": "expo start -c --android",
+    "prebuild:clean": "expo prebuild --clean",
+    "build:apk": "expo prebuild --platform android && cd android && ./gradlew assembleRelease",
     "clean": "rm -rf .expo node_modules"
   },
   "dependencies": {

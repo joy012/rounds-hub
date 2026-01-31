@@ -61,7 +61,7 @@ export default function BedDetailsScreen() {
     if (!id) return;
     await dischargePatient(id);
     setConfirmDischarge(false);
-    Toast.show({ type: 'success', text1: 'Patient discharged', position: 'top' });
+    Toast.show({ type: 'success', text1: 'Patient discharged from bed', position: 'top' });
     router.back();
   }, [id, dischargePatient, router]);
 
@@ -69,7 +69,7 @@ export default function BedDetailsScreen() {
     if (!id) return;
     await deleteBed(id);
     setConfirmDelete(false);
-    Toast.show({ type: 'success', text1: 'Bed removed', position: 'top' });
+    Toast.show({ type: 'success', text1: 'Bed removed from ward', position: 'top' });
     router.back();
   }, [id, deleteBed, router]);
 
@@ -78,9 +78,9 @@ export default function BedDetailsScreen() {
     setExportingPdf(true);
     try {
       await exportBedToPdf(bed, ward);
-      Toast.show({ type: 'success', text1: 'PDF ready to save', position: 'top' });
+      Toast.show({ type: 'success', text1: 'Bed PDF ready to save or share', position: 'top' });
     } catch {
-      Toast.show({ type: 'error', text1: 'Failed to create PDF', position: 'top' });
+      Toast.show({ type: 'error', text1: 'Failed to create bed PDF', position: 'top' });
     } finally {
       setExportingPdf(false);
     }
@@ -101,8 +101,6 @@ export default function BedDetailsScreen() {
   const setInvRows = (rows: typeof invRows) => {
     handlePatientChange({ ...patientData, inv: rows });
   };
-
-  const anyPenActive = dxPenActive || planPenActive || invPenActive;
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
@@ -163,7 +161,7 @@ export default function BedDetailsScreen() {
           padding: 12,
           paddingBottom: 32 + insets.bottom,
         }}
-        scrollEnabled={!anyPenActive}
+        scrollEnabled
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >

@@ -92,7 +92,7 @@ export default function HomeScreen() {
     setTitleInput('');
     setWardInput('');
     setEditMode(false);
-    Toast.show({ type: 'success', text1: 'Saved', position: 'top' });
+    Toast.show({ type: 'success', text1: 'Ward name and number saved', position: 'top' });
   }, [titleInput, wardInput, title, updateTitle, updateWardNumber]);
 
   const handleCancelEdit = useCallback(() => {
@@ -104,7 +104,7 @@ export default function HomeScreen() {
   const handleAddBeds = useCallback(
     (count: number) => {
       addBeds(count);
-      Toast.show({ type: 'success', text1: `Added ${count} bed(s)`, position: 'top' });
+      Toast.show({ type: 'success', text1: `Added ${count} bed(s) to ward`, position: 'top' });
     },
     [addBeds]
   );
@@ -113,24 +113,24 @@ export default function HomeScreen() {
     if (!confirmDeleteBedId) return;
     await deleteBed(confirmDeleteBedId);
     setConfirmDeleteBedId(null);
-    Toast.show({ type: 'success', text1: 'Bed removed', position: 'top' });
+    Toast.show({ type: 'success', text1: 'Bed removed from ward', position: 'top' });
   }, [confirmDeleteBedId, deleteBed]);
 
   const handleConfirmDischarge = useCallback(async () => {
     if (!confirmDischargeBedId) return;
     await dischargePatient(confirmDischargeBedId);
     setConfirmDischargeBedId(null);
-    Toast.show({ type: 'success', text1: 'Patient discharged', position: 'top' });
+    Toast.show({ type: 'success', text1: 'Patient discharged from bed', position: 'top' });
   }, [confirmDischargeBedId, dischargePatient]);
 
   const handleCustomAddSubmit = useCallback(() => {
     const num = parseInt(customAddValue, 10);
     if (!Number.isFinite(num) || num < 1) {
-      Toast.show({ type: 'error', text1: 'Enter a number from 1 to 50', position: 'top' });
+      Toast.show({ type: 'error', text1: 'Please enter a number of beds from 1 to 50', position: 'top' });
       return;
     }
     if (num > 50) {
-      Toast.show({ type: 'error', text1: 'Maximum 50 beds at a time', position: 'top' });
+      Toast.show({ type: 'error', text1: 'You can add at most 50 beds at a time', position: 'top' });
       return;
     }
     handleAddBeds(num);

@@ -68,10 +68,15 @@ export function InvCellEditor({
       transparent
       animationType="slide"
       onRequestClose={() => onOpenChange(false)}
+      statusBarTranslucent
     >
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <View style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end' }]}>
+        <View
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]}
+          pointerEvents="none"
+        />
         <Pressable
-          style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' }}
+          style={StyleSheet.absoluteFillObject}
           onPress={() => onOpenChange(false)}
           accessibilityLabel="Close"
           accessibilityRole="button"

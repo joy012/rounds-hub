@@ -27,7 +27,8 @@ const RESIZER_WIDTH = 44;
 const ROW_RESIZER_MIN_HEIGHT = 44;
 /** Default column ratios: first two same, third larger. Sum = 1. */
 const DEFAULT_COL_RATIOS = { date: 0.25, investigation: 0.25, findings: 0.5 };
-const TABLET_BREAKPOINT = 600;
+/** Show column/row resizers on all screen sizes (was 600; 0 = always show). */
+const TABLET_BREAKPOINT = 0;
 
 export interface InvTableProps {
   rows: InvRow[];
@@ -158,12 +159,12 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
     if (!confirmRemoveId) return;
     setDraftRows((prev) => prev.filter((r) => r.id !== confirmRemoveId));
     setConfirmRemoveId(null);
-    Toast.show({ type: 'success', text1: 'Row removed', position: 'top' });
+    Toast.show({ type: 'success', text1: 'Investigation row removed', position: 'top' });
   }, [confirmRemoveId]);
 
   const handleSave = useCallback(() => {
     onChange(draftRows);
-    Toast.show({ type: 'success', text1: 'Investigations data updated', position: 'top' });
+    Toast.show({ type: 'success', text1: 'Investigations table saved', position: 'top' });
   }, [draftRows, onChange]);
 
   const editingRow = editingCell

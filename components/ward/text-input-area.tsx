@@ -42,6 +42,7 @@ export function TextInputArea({
   const [isEditing, setIsEditing] = useState(initialEditing);
   const [draftText, setDraftText] = useState(value?.text ?? '');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const signatureRef = useRef<SignatureViewRef>(null);
   const draftRef = useRef(draftText);
   const valueRef = useRef(value);
@@ -72,34 +73,49 @@ export function TextInputArea({
 
   const showSavedToast = useCallback(
     (message: string) => {
-      const title = sectionName ? `${sectionName} data updated` : message;
+      const title = sectionName ? `${sectionName} saved` : message;
       Toast.show({
         type: 'success',
         text1: title,
+        text2: 'Text and drawing saved.',
         position: 'top',
       });
     },
     [sectionName]
   );
 
-  const handleSave = useCallback(() => {
-    onChange({ text: draftText.trim() || undefined, image: value?.image });
-    showSavedToast('Saved');
-  }, [draftText, value?.image, onChange, showSavedToast]);
+  const pendingSaveRef = useRef(false);
 
   const handleSignatureSave = useCallback(
     (signature: string) => {
-      if (signature) {
-        onChange({ text: draftText.trim() || undefined, image: signature });
+      const text = draftRef.current?.trim() || undefined;
+      const image = signature?.trim() ? signature : valueRef.current?.image;
+      onChangeRef.current({ text: text || undefined, image: image || undefined });
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
         showSavedToast('Saved');
+        setIsEditing(false);
+        onPenModeChange?.(false);
       }
     },
-    [draftText, onChange, showSavedToast]
+    [onChange, showSavedToast, onPenModeChange]
   );
 
-  const handleSaveDrawing = useCallback(() => {
+  const handleSave = useCallback(() => {
+    pendingSaveRef.current = true;
     signatureRef.current?.readSignature();
-  }, []);
+    // If readSignature doesn't call onOK (e.g. empty canvas on some platforms), exit after a short delay
+    setTimeout(() => {
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        const text = draftRef.current?.trim() || undefined;
+        onChangeRef.current({ text: text || undefined, image: valueRef.current?.image });
+        showSavedToast('Saved');
+        setIsEditing(false);
+        onPenModeChange?.(false);
+      }
+    }, 200);
+  }, [showSavedToast, onPenModeChange]);
 
   const PEN_MIN = 0.5;
   const PEN_MAX = 2.5;
@@ -110,14 +126,28 @@ export function TextInputArea({
   const HANDWRITING_CANVAS_HEIGHT = 240;
 
   const handleEraser = useCallback(() => {
+    setTool('eraser');
     signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
     signatureRef.current?.erase();
   }, []);
 
   const handleDraw = useCallback(() => {
+    setTool('pen');
     signatureRef.current?.changePenSize(PEN_MIN, PEN_MAX);
     signatureRef.current?.draw();
   }, []);
+
+  // Default to pen when entering edit mode
+  useEffect(() => {
+    if (isEditing) {
+      setTool('pen');
+      const t = setTimeout(() => {
+        signatureRef.current?.changePenSize?.(PEN_MIN, PEN_MAX);
+        signatureRef.current?.draw?.();
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [isEditing]);
 
   const handleClearCanvas = useCallback(() => {
     setShowClearConfirm(false);
@@ -159,11 +189,12 @@ export function TextInputArea({
               </Text>
             ) : null}
             {image ? (
-              <View className="mt-2 aspect-video max-h-24 w-32 overflow-hidden rounded bg-muted/30">
+              <View className="mt-2 min-h-[180px] w-full max-w-sm overflow-hidden rounded bg-muted/30">
                 <Image
                   source={{ uri: image.startsWith('data:') ? image : `data:image/png;base64,${image}` }}
-                  className="h-full w-full"
+                  className="h-full min-h-[180px] w-full"
                   resizeMode="contain"
+                  style={{ minHeight: 180 }}
                 />
               </View>
             ) : null}
@@ -234,17 +265,27 @@ export function TextInputArea({
           />
         </View>
         <View className="flex-row flex-wrap gap-2">
-          <Button size="sm" onPress={handleSaveDrawing} className="bg-primary">
-            <Icon as={Save} size={14} />
-            <Text variant="small">Save drawing</Text>
+          <Button
+            size="sm"
+            variant={tool === 'pen' ? 'secondary' : 'outline'}
+            onPress={handleDraw}
+            className={tool === 'pen' ? 'bg-primary/20 dark:bg-primary/25' : ''}
+          >
+            <Icon as={Pencil} size={14} className={tool === 'pen' ? 'text-primary' : 'text-muted-foreground'} />
+            <Text variant="small" className={tool === 'pen' ? 'text-primary font-semibold' : 'text-muted-foreground'}>
+              Pen
+            </Text>
           </Button>
-          <Button size="sm" variant="secondary" onPress={handleDraw}>
-            <Icon as={Pencil} size={14} className="text-primary" />
-            <Text variant="small">Pen</Text>
-          </Button>
-          <Button size="sm" variant="outline" onPress={handleEraser}>
-            <Icon as={Eraser} size={14} className="text-muted-foreground" />
-            <Text variant="small">Eraser</Text>
+          <Button
+            size="sm"
+            variant={tool === 'eraser' ? 'secondary' : 'outline'}
+            onPress={handleEraser}
+            className={tool === 'eraser' ? 'bg-muted' : ''}
+          >
+            <Icon as={Eraser} size={14} className={tool === 'eraser' ? 'text-foreground' : 'text-muted-foreground'} />
+            <Text variant="small" className={tool === 'eraser' ? 'text-foreground font-semibold' : 'text-muted-foreground'}>
+              Eraser
+            </Text>
           </Button>
           {image ? (
             <Button size="sm" variant="outline" onPress={handleRequestClearCanvas}>

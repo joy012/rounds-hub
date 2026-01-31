@@ -1,4 +1,4 @@
-import { Paths, copyAsync } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { Bed, Ward } from './types';
@@ -114,21 +114,34 @@ export function getBedPdfFilename(bed: Bed, ward: Ward): string {
 
 export async function exportBedToPdf(bed: Bed, ward: Ward): Promise<void> {
   const html = buildBedPdfHtml(bed, ward);
+
   const { uri } = await Print.printToFileAsync({
     html,
     base64: false,
   });
 
   const filename = getBedPdfFilename(bed, ward);
-  const documentUri = Paths.document.uri;
-  const destUri = documentUri.endsWith('/') ? `${documentUri}${filename}` : `${documentUri}/${filename}`;
-  await copyAsync({ from: uri, to: destUri });
+  const docDir = FileSystem.documentDirectory;
+  if (!docDir) {
+    throw new Error('Document directory is not available');
+  }
+  const destUri = docDir.endsWith('/') ? `${docDir}${filename}` : `${docDir}/${filename}`;
+
+  let shareUri = destUri;
+  try {
+    await FileSystem.copyAsync({ from: uri, to: destUri });
+  } catch {
+    // If copy fails (e.g. permissions), share the temp file from print directly
+    shareUri = uri;
+  }
 
   const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(destUri, {
-      mimeType: 'application/pdf',
-      dialogTitle: 'Save PDF',
-    });
+  if (!canShare) {
+    throw new Error('Sharing is not available on this device');
   }
+
+  await Sharing.shareAsync(shareUri, {
+    mimeType: 'application/pdf',
+    dialogTitle: 'Save PDF',
+  });
 }
