@@ -1,8 +1,12 @@
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { Icon } from '@/components/ui/icon';
+import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { TextInputArea } from '@/components/ward/text-input-area';
+import { THEME } from '@/lib/theme';
 import type { DxPlanContent, InvRow } from '@/lib/types';
 import { X } from 'lucide-react-native';
+import { useColorScheme } from 'nativewind';
 import { useCallback } from 'react';
 import {
   Modal,
@@ -50,6 +54,8 @@ export function InvCellEditor({
   onPenModeChange,
 }: InvCellEditorProps) {
   const { height } = useWindowDimensions();
+  const { colorScheme } = useColorScheme();
+  const theme = THEME[colorScheme ?? 'light'];
   const sheetHeight = Math.round(height * BOTTOM_SHEET_HEIGHT_RATIO);
   const value = rowToDxPlan(row, column);
   const label = COLUMN_LABELS[column];
@@ -61,6 +67,16 @@ export function InvCellEditor({
     },
     [onSave, onOpenChange]
   );
+
+  const handleDateChange = useCallback(
+    (isoDate: string | undefined) => {
+      onSave({ text: isoDate ?? '', image: undefined });
+      onOpenChange(false);
+    },
+    [onSave, onOpenChange]
+  );
+
+  const isDateColumn = column === 'date';
 
   return (
     <Modal
@@ -86,20 +102,32 @@ export function InvCellEditor({
             height: sheetHeight,
             borderTopLeftRadius: 20,
             borderTopRightRadius: 20,
-            backgroundColor: 'hsl(var(--background))',
+            backgroundColor: theme.card,
             borderTopWidth: 1,
             borderLeftWidth: 1,
             borderRightWidth: 1,
-            borderColor: 'hsl(var(--border))',
+            borderColor: theme.border,
             overflow: 'hidden',
           }}
         >
-          <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
-            <Text className="text-base font-semibold text-foreground">{label}</Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottomWidth: 1,
+              borderColor: theme.border,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: '600', color: theme.cardForeground }}>
+              {label}
+            </Text>
             <Pressable
               onPress={() => onOpenChange(false)}
               hitSlop={12}
-              className="rounded p-1 active:opacity-70"
+              style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, padding: 4, borderRadius: 4 })}
               accessibilityLabel="Close"
               accessibilityRole="button"
             >
@@ -107,20 +135,34 @@ export function InvCellEditor({
             </Pressable>
           </View>
           <ScrollView
-            className="flex-1"
+            style={{ flex: 1, backgroundColor: theme.card }}
             contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={true}
           >
-            <TextInputArea
-              label={label}
-              value={value}
-              onChange={handleChange}
-              onPenModeChange={onPenModeChange}
-              placeholder={`Type or draw ${label.toLowerCase()}...`}
-              sectionName={label}
-              initialEditing
-            />
+            {isDateColumn ? (
+              <View className="gap-2">
+                <Label>
+                  <Text variant="small" className="font-medium text-foreground">Date</Text>
+                </Label>
+                <DatePickerField
+                  value={value.text}
+                  onChange={handleDateChange}
+                  placeholder="Select date"
+                  accessibilityLabel="Investigation date"
+                />
+              </View>
+            ) : (
+              <TextInputArea
+                label={label}
+                value={value}
+                onChange={handleChange}
+                onPenModeChange={onPenModeChange}
+                placeholder={`Type or draw ${label.toLowerCase()}...`}
+                sectionName={label}
+                initialEditing
+              />
+            )}
           </ScrollView>
         </View>
       </View>

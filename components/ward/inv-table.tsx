@@ -4,7 +4,7 @@ import { Text } from '@/components/ui/text';
 import { InvCellEditor } from '@/components/ward/inv-cell-editor';
 import { ConsentModal } from '@/components/ward/modal-confirmation';
 import type { DxPlanContent, InvRow } from '@/lib/types';
-import { generateId } from '@/lib/utils';
+import { formatDisplayDate, generateId } from '@/lib/utils';
 import { GripHorizontal, GripVertical, Pen, Plus, Save } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -21,10 +21,10 @@ import Toast from 'react-native-toast-message';
 
 const MIN_COL_WIDTH = 60;
 const MAX_COL_WIDTH = 320;
-/** Column resizer touch area width; min ~44pt for reliable touch. */
-const RESIZER_WIDTH = 44;
-/** Row resizer strip min height for reliable touch. */
-const ROW_RESIZER_MIN_HEIGHT = 44;
+/** Slim column resizer on header border; icon-only, touch area preserved. */
+const RESIZER_WIDTH = 28;
+/** Slim row resizer strip; icon-only. */
+const ROW_RESIZER_MIN_HEIGHT = 28;
 /** Default column ratios: first two same, third larger. Sum = 1. */
 const DEFAULT_COL_RATIOS = { date: 0.25, investigation: 0.25, findings: 0.5 };
 /** Show column/row resizers on all screen sizes (was 600; 0 = always show). */
@@ -62,6 +62,11 @@ function InvCell({
   width: number;
 }) {
   const content = getCellContent(row, columnKey);
+  const isDateColumn = columnKey === 'date';
+  const showImage = !isDateColumn && content.image;
+  const displayText = isDateColumn && content.text
+    ? formatDisplayDate(content.text)
+    : content.text;
 
   const style = width > 0 ? { width } : { flex: 1 };
 
@@ -70,7 +75,7 @@ function InvCell({
       className="min-h-10 justify-center border-r border-border p-2 last:border-r-0"
       style={style}
     >
-      {content.image ? (
+      {showImage ? (
         <View className="aspect-video overflow-hidden rounded">
           <Image
             source={{ uri: content.image }}
@@ -78,13 +83,13 @@ function InvCell({
             resizeMode="contain"
           />
         </View>
-      ) : content.text ? (
+      ) : displayText ? (
         <Text
           variant="small"
           className="text-foreground line-clamp-3"
           numberOfLines={3}
         >
-          {content.text}
+          {displayText}
         </Text>
       ) : (
         <View className="flex-row items-center gap-1">
@@ -290,15 +295,13 @@ function ColumnResizer({
   return (
     <GestureDetector gesture={panGesture}>
       <View
-        className="flex-shrink-0 items-center justify-center self-stretch border-l border-r border-border bg-muted/40 dark:bg-muted/30"
+        className="flex-shrink-0 items-center justify-center self-stretch border-l border-border dark:border-border"
         style={[
           { width: RESIZER_WIDTH, minWidth: RESIZER_WIDTH },
           Platform.OS === 'web' ? { cursor: 'col-resize' as ViewStyle['cursor'] } : undefined,
         ]}
       >
-        <View className="rounded-lg border-2 border-border bg-background px-2 py-3 dark:border-muted-foreground/40 dark:bg-muted/50">
-          <Icon as={GripHorizontal} size={26} className="text-muted-foreground" />
-        </View>
+        <Icon as={GripHorizontal} size={18} className="text-muted-foreground/80" />
       </View>
     </GestureDetector>
   );
@@ -540,15 +543,13 @@ function InvTableRow({
         {rowContent}
         <GestureDetector gesture={panGesture}>
           <View
-            className="items-center justify-center border-t border-border bg-muted/40 dark:bg-muted/30"
+            className="items-center justify-center border-t border-border dark:border-border"
             style={[
               { minHeight: ROW_RESIZER_MIN_HEIGHT },
               Platform.OS === 'web' ? { cursor: 'ns-resize' as ViewStyle['cursor'] } : undefined,
             ]}
           >
-            <View className="rounded-lg border-2 border-border bg-background px-3 py-2 dark:border-muted-foreground/40 dark:bg-muted/50">
-              <Icon as={GripVertical} size={22} className="text-muted-foreground" />
-            </View>
+            <Icon as={GripVertical} size={18} className="text-muted-foreground/80" />
           </View>
         </GestureDetector>
       </View>

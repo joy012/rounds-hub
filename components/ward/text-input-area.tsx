@@ -3,7 +3,6 @@ import { Icon } from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
-import { ConsentModal } from '@/components/ward/modal-confirmation';
 import { THEME } from '@/lib/theme';
 import type { DxPlanContent } from '@/lib/types';
 import { Eraser, Pencil, Save } from 'lucide-react-native';
@@ -41,8 +40,10 @@ export function TextInputArea({
 
   const [isEditing, setIsEditing] = useState(initialEditing);
   const [draftText, setDraftText] = useState(value?.text ?? '');
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
+  const [tool, setTool] = useState<null | 'pen' | 'eraser'>(null);
+  const [canvasKey, setCanvasKey] = useState(0);
+  const [canvasReady, setCanvasReady] = useState(false);
+  const [pendingTool, setPendingTool] = useState<null | 'pen' | 'eraser'>(null);
   const signatureRef = useRef<SignatureViewRef>(null);
   const draftRef = useRef(draftText);
   const valueRef = useRef(value);
@@ -55,6 +56,36 @@ export function TextInputArea({
   useEffect(() => {
     setDraftText(value?.text ?? '');
   }, [value?.text]);
+
+  // Reset canvas ready and pending tool when signature view remounts (e.g. after Cancel)
+  useEffect(() => {
+    setCanvasReady(false);
+    setPendingTool(null);
+  }, [canvasKey]);
+
+  // When WebView is ready, run any pending pen/eraser selection
+  useEffect(() => {
+    if (!canvasReady || !pendingTool) return;
+    if (pendingTool === 'pen') {
+      signatureRef.current?.changePenSize(PEN_MIN, PEN_MAX);
+      signatureRef.current?.draw();
+      onPenModeChange?.(true);
+      setTool('pen');
+    } else if (pendingTool === 'eraser') {
+      signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
+      signatureRef.current?.erase();
+      onPenModeChange?.(true);
+      setTool('eraser');
+    }
+    setPendingTool(null);
+  }, [canvasReady, pendingTool, onPenModeChange]);
+
+  // Fallback: if onLoadEnd never fires (e.g. WebView in Modal), allow drawing after delay
+  useEffect(() => {
+    if (!isEditing) return;
+    const t = setTimeout(() => setCanvasReady((r) => r || true), 2500);
+    return () => clearTimeout(t);
+  }, [isEditing, canvasKey]);
 
   // Auto-save draft text when user navigates away (e.g. back) so no data is lost
   useEffect(() => {
@@ -69,7 +100,9 @@ export function TextInputArea({
 
   const text = value?.text ?? '';
   const image = value?.image;
-  const hasContent = Boolean(text?.trim() || image);
+  /** Empty canvas PNG base64 is ~100–300 chars; actual drawings are larger */
+  const hasMeaningfulDrawing = Boolean(image?.trim() && image.length > 400);
+  const hasContent = Boolean(text?.trim() || hasMeaningfulDrawing);
 
   const showSavedToast = useCallback(
     (message: string) => {
@@ -86,6 +119,11 @@ export function TextInputArea({
 
   const pendingSaveRef = useRef(false);
 
+  const exitDrawingMode = useCallback(() => {
+    setTool(null);
+    onPenModeChange?.(false);
+  }, [onPenModeChange]);
+
   const handleSignatureSave = useCallback(
     (signature: string) => {
       const text = draftRef.current?.trim() || undefined;
@@ -95,16 +133,15 @@ export function TextInputArea({
         pendingSaveRef.current = false;
         showSavedToast('Saved');
         setIsEditing(false);
-        onPenModeChange?.(false);
+        exitDrawingMode();
       }
     },
-    [onChange, showSavedToast, onPenModeChange]
+    [showSavedToast, exitDrawingMode]
   );
 
   const handleSave = useCallback(() => {
     pendingSaveRef.current = true;
     signatureRef.current?.readSignature();
-    // If readSignature doesn't call onOK (e.g. empty canvas on some platforms), exit after a short delay
     setTimeout(() => {
       if (pendingSaveRef.current) {
         pendingSaveRef.current = false;
@@ -112,10 +149,10 @@ export function TextInputArea({
         onChangeRef.current({ text: text || undefined, image: valueRef.current?.image });
         showSavedToast('Saved');
         setIsEditing(false);
-        onPenModeChange?.(false);
+        exitDrawingMode();
       }
     }, 200);
-  }, [showSavedToast, onPenModeChange]);
+  }, [showSavedToast, exitDrawingMode]);
 
   const PEN_MIN = 0.5;
   const PEN_MAX = 2.5;
@@ -126,48 +163,41 @@ export function TextInputArea({
   const HANDWRITING_CANVAS_HEIGHT = 240;
 
   const handleEraser = useCallback(() => {
-    setTool('eraser');
-    signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
-    signatureRef.current?.erase();
-  }, []);
+    if (canvasReady) {
+      setTool('eraser');
+      signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
+      signatureRef.current?.erase();
+      onPenModeChange?.(true);
+    } else {
+      setPendingTool('eraser');
+    }
+  }, [canvasReady, onPenModeChange]);
 
   const handleDraw = useCallback(() => {
-    setTool('pen');
-    signatureRef.current?.changePenSize(PEN_MIN, PEN_MAX);
-    signatureRef.current?.draw();
-  }, []);
-
-  // Default to pen when entering edit mode
-  useEffect(() => {
-    if (isEditing) {
+    if (canvasReady) {
       setTool('pen');
-      const t = setTimeout(() => {
-        signatureRef.current?.changePenSize?.(PEN_MIN, PEN_MAX);
-        signatureRef.current?.draw?.();
-      }, 100);
-      return () => clearTimeout(t);
+      signatureRef.current?.changePenSize(PEN_MIN, PEN_MAX);
+      signatureRef.current?.draw();
+      onPenModeChange?.(true);
+    } else {
+      setPendingTool('pen');
     }
-  }, [isEditing]);
+  }, [canvasReady, onPenModeChange]);
 
-  const handleClearCanvas = useCallback(() => {
-    setShowClearConfirm(false);
-    signatureRef.current?.clearSignature();
-    onChange({ text: draftText.trim() || undefined, image: undefined });
-  }, [draftText, onChange]);
-
-  const handleRequestClearCanvas = useCallback(() => {
-    setShowClearConfirm(true);
-  }, []);
+  const handleCancelDrawing = useCallback(() => {
+    setCanvasKey((k) => k + 1);
+    exitDrawingMode();
+  }, [exitDrawingMode]);
 
   const handleStartEdit = useCallback(() => {
     setIsEditing(true);
-    onPenModeChange?.(true);
-  }, [onPenModeChange]);
+    // Pen/eraser not selected by default; scroll stays enabled until user taps Pen or Eraser
+  }, []);
 
   const handleDoneEdit = useCallback(() => {
     setIsEditing(false);
-    onPenModeChange?.(false);
-  }, [onPenModeChange]);
+    exitDrawingMode();
+  }, [exitDrawingMode]);
 
   if (!isEditing) {
     return (
@@ -188,13 +218,12 @@ export function TextInputArea({
                 {text}
               </Text>
             ) : null}
-            {image ? (
-              <View className="mt-2 min-h-[180px] w-full max-w-sm overflow-hidden rounded bg-muted/30">
+            {hasMeaningfulDrawing && image ? (
+              <View className="mt-2 h-28 w-full max-w-sm overflow-hidden rounded bg-muted/30">
                 <Image
                   source={{ uri: image.startsWith('data:') ? image : `data:image/png;base64,${image}` }}
-                  className="h-full min-h-[180px] w-full"
+                  className="h-full w-full"
                   resizeMode="contain"
-                  style={{ minHeight: 180 }}
                 />
               </View>
             ) : null}
@@ -245,9 +274,11 @@ export function TextInputArea({
           style={{ height: HANDWRITING_CANVAS_HEIGHT }}
         >
           <SignatureView
+            key={canvasKey}
             ref={signatureRef}
             onOK={handleSignatureSave}
-            dataURL={image}
+            onLoadEnd={() => setCanvasReady(true)}
+            dataURL={image ?? ''}
             descriptionText=""
             penColor={penColor}
             backgroundColor={bgColor}
@@ -278,33 +309,24 @@ export function TextInputArea({
           </Button>
           <Button
             size="sm"
-            variant={tool === 'eraser' ? 'secondary' : 'outline'}
+            variant={tool === 'eraser' ? 'destructive' : 'outline'}
             onPress={handleEraser}
-            className={tool === 'eraser' ? 'bg-muted' : ''}
+            className={tool === 'eraser' ? 'bg-destructive dark:bg-destructive/80' : ''}
           >
-            <Icon as={Eraser} size={14} className={tool === 'eraser' ? 'text-foreground' : 'text-muted-foreground'} />
-            <Text variant="small" className={tool === 'eraser' ? 'text-foreground font-semibold' : 'text-muted-foreground'}>
+            <Icon as={Eraser} size={14} className={tool === 'eraser' ? 'text-destructive-foreground' : 'text-muted-foreground'} />
+            <Text variant="small" className={tool === 'eraser' ? 'text-destructive-foreground font-semibold' : 'text-muted-foreground'}>
               Eraser
             </Text>
           </Button>
-          {image ? (
-            <Button size="sm" variant="outline" onPress={handleRequestClearCanvas}>
-              <Text variant="small">Clear drawing</Text>
-            </Button>
-          ) : null}
+          <Button size="sm" variant="outline" onPress={handleCancelDrawing}>
+            <Text variant="small">Cancel</Text>
+          </Button>
+          <Button size="sm" onPress={handleSave} className="bg-primary">
+            <Icon as={Save} size={14} />
+            <Text variant="small">Save</Text>
+          </Button>
         </View>
       </View>
-
-      <ConsentModal
-        open={showClearConfirm}
-        onOpenChange={setShowClearConfirm}
-        title="Clear drawing?"
-        description="This will remove the drawing. You can draw again after clearing."
-        confirmText="Clear"
-        cancelText="Cancel"
-        variant="delete"
-        onConfirm={handleClearCanvas}
-      />
     </View>
   );
 }

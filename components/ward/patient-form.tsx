@@ -1,7 +1,7 @@
 import { DatePickerField } from '@/components/ui/date-picker-field';
+import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Text } from '@/components/ui/text';
 import {
   Select,
   SelectContent,
@@ -10,11 +10,11 @@ import {
   SelectValue,
   type Option,
 } from '@/components/ui/select';
+import { Text } from '@/components/ui/text';
 import type { PatientData } from '@/lib/types';
 import { CalendarDays, Hash, User, VenusAndMars } from 'lucide-react-native';
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
-import { Icon } from '@/components/ui/icon';
 
 const GENDER_OPTIONS: { value: 'Male' | 'Female' | 'Other'; label: string }[] = [
   { value: 'Male', label: 'Male' },
@@ -123,14 +123,14 @@ export function PatientForm({ patient, onChange }: PatientFormProps) {
             <View className="flex-row items-center gap-2">
               <Icon as={CalendarDays} size={14} className="text-primary" />
               <Text variant="small" className="text-foreground">
-                Admission date
+                Admission
               </Text>
             </View>
           </Label>
           <DatePickerField
             value={admissionDate}
             onChange={(v) => update({ admissionDate: v })}
-            placeholder="Optional"
+            placeholder="Select date"
             accessibilityLabel="Admission date"
           />
         </View>
@@ -139,14 +139,14 @@ export function PatientForm({ patient, onChange }: PatientFormProps) {
             <View className="flex-row items-center gap-2">
               <Icon as={CalendarDays} size={14} className="text-primary" />
               <Text variant="small" className="text-foreground">
-                Discharge date
+                Discharge
               </Text>
             </View>
           </Label>
           <DatePickerField
             value={dischargeDate}
             onChange={(v) => update({ dischargeDate: v })}
-            placeholder="Optional"
+            placeholder="Select date"
             accessibilityLabel="Discharge date"
           />
         </View>

@@ -1,8 +1,13 @@
+import { Icon } from '@/components/ui/icon';
+import { Text } from '@/components/ui/text';
 import { THEME } from '@/lib/theme';
-import { cn } from '@/lib/utils';
-import { useColorScheme } from 'nativewind';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { cn, formatDisplayDate } from '@/lib/utils';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 import { Calendar } from 'lucide-react-native';
+import { useColorScheme } from 'nativewind';
 import { useCallback, useMemo, useState } from 'react';
 import {
   Modal,
@@ -11,8 +16,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Icon } from '@/components/ui/icon';
-import { Text } from '@/components/ui/text';
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -27,17 +30,6 @@ function toISODate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-function formatDisplay(iso: string | undefined): string {
-  if (!iso || !ISO_DATE_REGEX.test(iso)) return '';
-  const d = parseISODate(iso);
-  if (!d) return '';
-  return d.toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
 }
 
 export interface DatePickerFieldProps {
@@ -65,15 +57,32 @@ export function DatePickerField({
     [value]
   );
 
-  const displayText = value ? formatDisplay(value) : '';
+  const displayText = value ? formatDisplayDate(value) : '';
 
   const handleNativeChange = useCallback(
     (_: unknown, selected?: Date) => {
-      if (Platform.OS === 'android') setOpen(false);
-      if (selected) onChange(toISODate(selected));
+      if (selected) {
+        onChange(toISODate(selected));
+        setOpen(false);
+      }
     },
     [onChange]
   );
+
+  const handleOpenPicker = useCallback(() => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: date,
+        mode: 'date',
+        display: 'default',
+        onChange: (event: DateTimePickerEvent, selected?: Date) => {
+          if (event.type === 'set' && selected) onChange(toISODate(selected));
+        },
+      });
+      return;
+    }
+    setOpen(true);
+  }, [date, onChange]);
 
   const handleWebChangeText = useCallback(
     (raw: string) => {
@@ -118,7 +127,7 @@ export function DatePickerField({
       <Pressable
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
-        onPress={() => setOpen(true)}
+        onPress={handleOpenPicker}
         className={cn(
           'border-input bg-background flex h-10 min-w-0 flex-row items-center rounded-md border px-3 py-2 shadow-sm sm:h-9',
           className
@@ -133,40 +142,27 @@ export function DatePickerField({
           {displayText || placeholder}
         </Text>
       </Pressable>
-      <Modal visible={open} transparent animationType="slide">
-        <Pressable
-          className="flex-1 justify-end bg-black/50"
-          onPress={() => setOpen(false)}
-        >
+      {Platform.OS === 'ios' && (
+        <Modal visible={open} transparent animationType="slide">
           <Pressable
-            className="rounded-t-2xl bg-card p-4"
-            onPress={(e) => e.stopPropagation()}
+            className="flex-1 justify-end bg-black/50"
+            onPress={() => setOpen(false)}
           >
-            <View className="flex-row items-center justify-between border-b border-border pb-3 dark:border-border">
-              <Text variant="default" className="font-medium text-foreground">
-                Select date
-              </Text>
-              <Pressable
-                onPress={() => setOpen(false)}
-                className="rounded-md bg-primary px-4 py-2"
-              >
-                <Text variant="small" className="font-medium text-primary-foreground">
-                  Done
-                </Text>
-              </Pressable>
-            </View>
-            <View className="mt-2">
+            <Pressable
+              className="rounded-t-2xl bg-card p-4"
+              onPress={(e) => e.stopPropagation()}
+            >
               <DateTimePicker
                 value={date}
                 mode="date"
-                display={Platform.OS === 'android' ? 'calendar' : 'spinner'}
+                display="spinner"
                 onChange={handleNativeChange}
                 themeVariant={colorScheme === 'dark' ? 'dark' : 'light'}
               />
-            </View>
+            </Pressable>
           </Pressable>
-        </Pressable>
-      </Modal>
+        </Modal>
+      )}
     </>
   );
 }

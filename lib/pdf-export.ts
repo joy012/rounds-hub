@@ -1,20 +1,149 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { Bed, Ward } from './types';
+import type { Bed, InvRow, Ward } from './types';
+import { formatDisplayDate } from './utils';
 
 const PDF_HTML_STYLE = `
   <style>
-    body { font-family: system-ui, sans-serif; font-size: 12px; color: #1a1a1a; padding: 16px; line-height: 1.4; }
-    h1 { font-size: 16px; margin: 0 0 12px 0; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
-    h2 { font-size: 14px; margin: 14px 0 6px 0; color: #333; }
-    .section { margin-bottom: 14px; }
-    .section p { margin: 4px 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
-    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
-    th { background: #f5f5f5; font-weight: 600; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      font-size: 11px;
+      color: #1a1a1a;
+      padding: 24px;
+      line-height: 1.45;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .doc-header {
+      text-align: center;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #1a1a1a;
+    }
+    .doc-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin: 0 0 4px 0;
+      text-transform: uppercase;
+    }
+    .doc-subtitle {
+      font-size: 12px;
+      color: #555;
+      margin: 0;
+    }
+    .doc-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      font-size: 10px;
+      color: #666;
+    }
+    .patient-block {
+      background: #f8faf9;
+      border: 1px solid #c5d4cf;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+    }
+    .patient-block-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #2d4a42;
+      margin: 0 0 10px 0;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #c5d4cf;
+    }
+    .patient-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px 20px;
+    }
+    .patient-item {
+      display: flex;
+      gap: 6px;
+    }
+    .patient-item strong {
+      min-width: 72px;
+      font-weight: 600;
+      color: #444;
+    }
+    .section {
+      margin-bottom: 18px;
+      page-break-inside: avoid;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #2d4a42;
+      margin: 0 0 8px 0;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #c5d4cf;
+    }
+    .section-content {
+      padding-left: 2px;
+    }
+    .section-content p {
+      margin: 0 0 6px 0;
+    }
+    .section-content p:last-child {
+      margin-bottom: 0;
+    }
+    .handwriting-img {
+      max-width: 100%;
+      max-height: 120px;
+      object-fit: contain;
+      margin-top: 6px;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+    }
+    table.inv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+      margin-top: 4px;
+    }
+    table.inv-table th,
+    table.inv-table td {
+      border: 1px solid #c5d4cf;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    table.inv-table th {
+      background: #e8f0ed;
+      font-weight: 700;
+      color: #2d4a42;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    table.inv-table tr:nth-child(even) {
+      background: #fafbfa;
+    }
+    .inv-cell-img {
+      max-width: 140px;
+      max-height: 60px;
+      object-fit: contain;
+      margin-top: 4px;
+      border: 1px solid #e5e5e5;
+      border-radius: 3px;
+    }
+    .footer {
+      margin-top: 28px;
+      padding-top: 12px;
+      border-top: 1px solid #ddd;
+      font-size: 9px;
+      color: #888;
+      text-align: center;
+    }
     .muted { color: #666; }
-    img.signature { max-width: 200px; max-height: 80px; object-fit: contain; }
   </style>
 `;
 
@@ -29,17 +158,62 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => map[c] ?? c);
 }
 
-function buildPatientSection(patient: NonNullable<Bed['patient']>): string {
-  const parts: string[] = [];
-  if (patient.name) parts.push(`<p><strong>Name:</strong> ${escapeHtml(patient.name)}</p>`);
-  if (patient.age != null) parts.push(`<p><strong>Age:</strong> ${patient.age}</p>`);
-  if (patient.gender) parts.push(`<p><strong>Gender:</strong> ${escapeHtml(patient.gender)}</p>`);
+function dataUrl(img: string | undefined): string {
+  if (!img?.trim()) return '';
+  return img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
+}
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatPrintDate(): string {
+  const d = new Date();
+  const day = d.getDate();
+  const month = MONTH_SHORT[d.getMonth()] ?? '';
+  const year = d.getFullYear();
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${day} ${month} ${year}, ${pad(h)}:${pad(m)}`;
+}
+
+function buildDocHeader(ward: Ward, bedNumber: number): string {
+  const title = escapeHtml(ward.title ?? 'Department');
+  const wardNum = escapeHtml(ward.wardNumber ?? '—');
+  const printDate = formatPrintDate();
+  return `
+  <div class="doc-header">
+    <h1 class="doc-title">Patient Summary</h1>
+    <p class="doc-subtitle">${title} · Ward ${wardNum} · Bed ${bedNumber}</p>
+    <div class="doc-meta">
+      <span>Document generated by RoundsHub</span>
+      <span>Printed: ${escapeHtml(printDate)}</span>
+    </div>
+  </div>`;
+}
+
+function buildPatientBlock(patient: NonNullable<Bed['patient']>, bedNumber: number): string {
+  const items: string[] = [];
+  items.push(`<div class="patient-item"><strong>Bed No.</strong> ${bedNumber}</div>`);
+  if (patient.name)
+    items.push(`<div class="patient-item"><strong>Name</strong> ${escapeHtml(patient.name)}</div>`);
+  if (patient.age != null)
+    items.push(`<div class="patient-item"><strong>Age</strong> ${patient.age}</div>`);
+  if (patient.gender)
+    items.push(`<div class="patient-item"><strong>Gender</strong> ${escapeHtml(patient.gender)}</div>`);
   if (patient.admissionDate)
-    parts.push(`<p><strong>Admission:</strong> ${escapeHtml(patient.admissionDate)}</p>`);
+    items.push(
+      `<div class="patient-item"><strong>Admission</strong> ${escapeHtml(formatDisplayDate(patient.admissionDate))}</div>`
+    );
   if (patient.dischargeDate)
-    parts.push(`<p><strong>Discharge:</strong> ${escapeHtml(patient.dischargeDate)}</p>`);
-  if (parts.length === 0) return '';
-  return `<div class="section"><h2>Patient info</h2>${parts.join('')}</div>`;
+    items.push(
+      `<div class="patient-item"><strong>Discharge</strong> ${escapeHtml(formatDisplayDate(patient.dischargeDate))}</div>`
+    );
+  if (items.length === 0) return '';
+  return `
+  <div class="patient-block">
+    <p class="patient-block-title">Patient details</p>
+    <div class="patient-grid">${items.join('')}</div>
+  </div>`;
 }
 
 function buildDxPlanSection(label: string, content: { text?: string; image?: string } | undefined): string {
@@ -47,48 +221,76 @@ function buildDxPlanSection(label: string, content: { text?: string; image?: str
   const parts: string[] = [];
   if (content.text) parts.push(`<p>${escapeHtml(content.text)}</p>`);
   if (content.image) {
-    const src = content.image.startsWith('data:') ? content.image : `data:image/png;base64,${content.image}`;
-    parts.push(`<p><img class="signature" src="${src}" alt="handwriting" /></p>`);
+    const src = dataUrl(content.image);
+    if (src) parts.push(`<p><img class="handwriting-img" src="${src}" alt="handwriting" /></p>`);
   }
-  return `<div class="section"><h2>${escapeHtml(label)}</h2>${parts.join('')}</div>`;
+  return `
+  <div class="section">
+    <p class="section-title">${escapeHtml(label)}</p>
+    <div class="section-content">${parts.join('')}</div>
+  </div>`;
+}
+
+function invCellContent(text: string | undefined, img: string | undefined): string {
+  const t = text?.trim() ? escapeHtml(text) : '<span class="muted">—</span>';
+  if (!img?.trim()) return t;
+  const src = dataUrl(img);
+  return `${t}<br/><img class="inv-cell-img" src="${src}" alt="" />`;
 }
 
 function buildInvTable(rows: NonNullable<NonNullable<Bed['patient']>['inv']>): string {
   if (!rows?.length) return '';
   const cells = rows
     .map(
-      (r) =>
-        `<tr><td>${escapeHtml(r.date ?? '')}</td><td>${escapeHtml(r.investigation ?? '')}</td><td>${escapeHtml(r.findings ?? '')}</td></tr>`
+      (r: InvRow) =>
+        `<tr>
+          <td>${invCellContent(r.date, r.dateImage)}</td>
+          <td>${invCellContent(r.investigation, r.investigationImage)}</td>
+          <td>${invCellContent(r.findings, r.findingsImage)}</td>
+        </tr>`
     )
     .join('');
   return `
   <div class="section">
-    <h2>Investigations</h2>
-    <table>
+    <p class="section-title">Investigations</p>
+    <table class="inv-table">
       <thead><tr><th>Date</th><th>Investigation</th><th>Findings</th></tr></thead>
       <tbody>${cells}</tbody>
     </table>
   </div>`;
 }
 
+function buildFooter(ward: Ward, bedNumber: number): string {
+  const title = escapeHtml(ward.title ?? '');
+  const wardNum = escapeHtml(ward.wardNumber ?? '');
+  return `
+  <div class="footer">
+    ${title} · Ward ${wardNum} · Bed ${bedNumber} · ${escapeHtml(formatPrintDate())}
+  </div>`;
+}
+
 export function buildBedPdfHtml(bed: Bed, ward: Ward): string {
   const patient = bed.patient;
-  const title = `${escapeHtml(ward.title)} – Ward ${escapeHtml(ward.wardNumber ?? '')} – Bed ${bed.number}`;
-  const patientHtml = patient ? buildPatientSection(patient) : '';
-  const dxHtml = patient?.dx ? buildDxPlanSection('Dx', patient.dx) : '';
+  const headerHtml = buildDocHeader(ward, bed.number);
+  const patientHtml = patient
+    ? buildPatientBlock(patient, bed.number)
+    : `<div class="patient-block"><p class="patient-block-title">Patient details</p><div class="patient-grid"><div class="patient-item"><strong>Bed No.</strong> ${bed.number}</div><div class="patient-item"><span class="muted">No patient data</span></div></div></div>`;
+  const dxHtml = patient?.dx ? buildDxPlanSection('Diagnosis (Dx)', patient.dx) : '';
   const planHtml = patient?.plan ? buildDxPlanSection('Plan', patient.plan) : '';
   const invHtml = patient?.inv ? buildInvTable(patient.inv) : '';
+  const footerHtml = buildFooter(ward, bed.number);
 
   return `
   <!DOCTYPE html>
   <html>
   <head><meta charset="utf-8"/>${PDF_HTML_STYLE}</head>
   <body>
-    <h1>${title}</h1>
+    ${headerHtml}
     ${patientHtml}
     ${dxHtml}
     ${planHtml}
     ${invHtml}
+    ${footerHtml}
   </body>
   </html>`;
 }
@@ -131,7 +333,6 @@ export async function exportBedToPdf(bed: Bed, ward: Ward): Promise<void> {
   try {
     await FileSystem.copyAsync({ from: uri, to: destUri });
   } catch {
-    // If copy fails (e.g. permissions), share the temp file from print directly
     shareUri = uri;
   }
 

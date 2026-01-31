@@ -34,6 +34,8 @@ const CONTENT_PX = 16;
 const TABLET_BREAKPOINT = 600;
 const ADD_BUTTON_WIDTH_TABLET = 80;
 const CUSTOM_BUTTON_WIDTH_TABLET = 110;
+/** Match bed cell total height (card 80 + gap 8 + action row 32) so all row cells align. */
+const BED_CELL_MIN_HEIGHT = 120;
 
 /** Beds per row by layout width (portrait/landscape). */
 function getBedsPerRow(width: number): number {
@@ -357,7 +359,10 @@ export default function HomeScreen() {
                         </View>
                       </>
                     ) : (
-                      <View className="min-h-[72px] rounded-xl border border-dashed border-border/80 bg-muted/10 dark:bg-muted/5" />
+                      <View
+                        className="min-w-0 rounded-xl border border-dashed border-border/80 bg-muted/10 dark:bg-muted/5"
+                        style={{ minHeight: BED_CELL_MIN_HEIGHT }}
+                      />
                     )}
                   </View>
                 ))}

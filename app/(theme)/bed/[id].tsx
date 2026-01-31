@@ -161,7 +161,7 @@ export default function BedDetailsScreen() {
           padding: 12,
           paddingBottom: 32 + insets.bottom,
         }}
-        scrollEnabled
+        scrollEnabled={!(dxPenActive || planPenActive || invPenActive)}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -225,7 +225,7 @@ export default function BedDetailsScreen() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden rounded-xl border border-border bg-card shadow-sm dark:border-border dark:shadow-none">
+        <Card className="pt-0 overflow-hidden rounded-xl border border-border bg-card shadow-sm dark:border-border dark:shadow-none">
           <CardHeader className="border-border border-b bg-muted/30 px-3 py-2 dark:bg-muted/20">
             <View className="flex-row items-center gap-1.5">
               <View className="rounded-md bg-success/15 p-1.5 dark:bg-success/25">
@@ -236,7 +236,7 @@ export default function BedDetailsScreen() {
               </CardTitle>
             </View>
           </CardHeader>
-          <CardContent className="p-3">
+          <CardContent className="px-2 py-0">
             <TextInputArea
               label="Plan"
               value={patient?.plan}
