@@ -8,7 +8,7 @@ import type { DxPlanContent } from '@/lib/types';
 import { Eraser, Pencil, Save } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, View } from 'react-native';
+import { ActivityIndicator, Image, Keyboard, StyleSheet, View } from 'react-native';
 import SignatureView, { type SignatureViewRef } from 'react-native-signature-canvas';
 import Toast from 'react-native-toast-message';
 
@@ -63,27 +63,30 @@ export function TextInputArea({
     setPendingTool(null);
   }, [canvasKey]);
 
-  // When WebView is ready, run any pending pen/eraser selection
+  // When WebView is ready, run any pending pen/eraser selection (defer so WebView is fully ready)
   useEffect(() => {
     if (!canvasReady || !pendingTool) return;
-    if (pendingTool === 'pen') {
-      signatureRef.current?.changePenSize(PEN_MIN, PEN_MAX);
-      signatureRef.current?.draw();
-      onPenModeChange?.(true);
-      setTool('pen');
-    } else if (pendingTool === 'eraser') {
-      signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
-      signatureRef.current?.erase();
-      onPenModeChange?.(true);
-      setTool('eraser');
-    }
-    setPendingTool(null);
+    const id = setTimeout(() => {
+      if (pendingTool === 'pen') {
+        signatureRef.current?.changePenSize(PEN_MIN, PEN_MAX);
+        signatureRef.current?.draw();
+        onPenModeChange?.(true);
+        setTool('pen');
+      } else if (pendingTool === 'eraser') {
+        signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
+        signatureRef.current?.erase();
+        onPenModeChange?.(true);
+        setTool('eraser');
+      }
+      setPendingTool(null);
+    }, 150);
+    return () => clearTimeout(id);
   }, [canvasReady, pendingTool, onPenModeChange]);
 
-  // Fallback: if onLoadEnd never fires (e.g. WebView in Modal), allow drawing after delay
+  // Fallback: if onLoadEnd never fires (e.g. WebView in Modal), mark ready after delay
   useEffect(() => {
     if (!isEditing) return;
-    const t = setTimeout(() => setCanvasReady((r) => r || true), 2500);
+    const t = setTimeout(() => setCanvasReady((r) => r || true), 3000);
     return () => clearTimeout(t);
   }, [isEditing, canvasKey]);
 
@@ -163,22 +166,30 @@ export function TextInputArea({
   const HANDWRITING_CANVAS_HEIGHT = 240;
 
   const handleEraser = useCallback(() => {
+    Keyboard.dismiss();
     if (canvasReady) {
-      setTool('eraser');
-      signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
-      signatureRef.current?.erase();
-      onPenModeChange?.(true);
+      // Defer so WebView has a frame to receive focus/touches
+      setTimeout(() => {
+        setTool('eraser');
+        signatureRef.current?.changePenSize(ERASER_MIN, ERASER_MAX);
+        signatureRef.current?.erase();
+        onPenModeChange?.(true);
+      }, 80);
     } else {
       setPendingTool('eraser');
     }
   }, [canvasReady, onPenModeChange]);
 
   const handleDraw = useCallback(() => {
+    Keyboard.dismiss();
     if (canvasReady) {
-      setTool('pen');
-      signatureRef.current?.changePenSize(PEN_MIN, PEN_MAX);
-      signatureRef.current?.draw();
-      onPenModeChange?.(true);
+      // Defer so WebView has a frame to receive focus/touches
+      setTimeout(() => {
+        setTool('pen');
+        signatureRef.current?.changePenSize(PEN_MIN, PEN_MAX);
+        signatureRef.current?.draw();
+        onPenModeChange?.(true);
+      }, 80);
     } else {
       setPendingTool('pen');
     }
@@ -264,14 +275,25 @@ export function TextInputArea({
         className="min-h-24 rounded-xl border border-border dark:border-border"
       />
 
-      {/* 2. Handwriting section below, with eraser in pen section */}
+      {/* 2. Handwriting section below; show loading until canvas is ready */}
       <View className="gap-2">
-        <Text variant="small" className="font-medium text-muted-foreground">
-          Handwriting
-        </Text>
+        <View className="flex-row items-center gap-2">
+          <Text variant="small" className="font-medium text-muted-foreground">
+            Handwriting
+          </Text>
+          {!canvasReady && (
+            <View className="flex-row items-center gap-1.5">
+              <ActivityIndicator size="small" color={theme.primary} />
+              <Text variant="small" className="text-muted-foreground">
+                Preparing canvas…
+              </Text>
+            </View>
+          )}
+        </View>
         <View
           className="overflow-hidden rounded-lg border border-border bg-muted/30 dark:border-border dark:bg-muted/20"
           style={{ height: HANDWRITING_CANVAS_HEIGHT }}
+          pointerEvents="box-none"
         >
           <SignatureView
             key={canvasKey}
@@ -294,12 +316,28 @@ export function TextInputArea({
             imageType="image/png"
             style={{ flex: 1, height: HANDWRITING_CANVAS_HEIGHT }}
           />
+          {!canvasReady && (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                styles.canvasLoadingOverlay,
+                { backgroundColor: theme.card + 'E6' },
+              ]}
+              pointerEvents="none"
+            >
+              <ActivityIndicator size="large" color={theme.primary} />
+              <Text variant="small" className="mt-2 text-muted-foreground">
+                Loading writing area…
+              </Text>
+            </View>
+          )}
         </View>
         <View className="flex-row flex-wrap gap-2">
           <Button
             size="sm"
             variant={tool === 'pen' ? 'secondary' : 'outline'}
             onPress={handleDraw}
+            disabled={!canvasReady}
             className={tool === 'pen' ? 'bg-primary/20 dark:bg-primary/25' : ''}
           >
             <Icon as={Pencil} size={14} className={tool === 'pen' ? 'text-primary' : 'text-muted-foreground'} />
@@ -311,6 +349,7 @@ export function TextInputArea({
             size="sm"
             variant={tool === 'eraser' ? 'destructive' : 'outline'}
             onPress={handleEraser}
+            disabled={!canvasReady}
             className={tool === 'eraser' ? 'bg-destructive dark:bg-destructive/80' : ''}
           >
             <Icon as={Eraser} size={14} className={tool === 'eraser' ? 'text-destructive-foreground' : 'text-muted-foreground'} />
@@ -330,3 +369,11 @@ export function TextInputArea({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  canvasLoadingOverlay: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+});

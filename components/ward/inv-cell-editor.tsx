@@ -109,6 +109,7 @@ export function InvCellEditor({
             borderColor: theme.border,
             overflow: 'hidden',
           }}
+          pointerEvents="box-none"
         >
           <View
             style={{
@@ -137,7 +138,8 @@ export function InvCellEditor({
           <ScrollView
             style={{ flex: 1, backgroundColor: theme.card }}
             contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={true}
           >
             {isDateColumn ? (

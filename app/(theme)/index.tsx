@@ -37,19 +37,13 @@ const CUSTOM_BUTTON_WIDTH_TABLET = 110;
 /** Match bed cell total height (card 80 + gap 8 + action row 32) so all row cells align. */
 const BED_CELL_MIN_HEIGHT = 120;
 
-/** Beds per row by layout width (portrait/landscape). */
-function getBedsPerRow(width: number): number {
-  if (width < 400) return 3;
-  if (width < 600) return 4;
-  if (width < 800) return 5;
-  return 6;
-}
+/** Always 4 beds per row on any device (4x4 grid). */
+const BEDS_PER_ROW = 4;
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const isTablet = windowWidth >= TABLET_BREAKPOINT;
-  const bedsPerRow = getBedsPerRow(windowWidth);
   const router = useRouter();
   const { colorScheme, toggleColorScheme } = useColorScheme();
   const { ward, isLoading, updateTitle, updateWardNumber, addBeds, deleteBed, dischargePatient } =
@@ -71,14 +65,14 @@ export default function HomeScreen() {
 
   const gridRows = useMemo(() => {
     const rows: (Bed | null)[][] = [];
-    for (let i = 0; i < beds.length; i += bedsPerRow) {
-      const row: (Bed | null)[] = beds.slice(i, i + bedsPerRow);
-      while (row.length < bedsPerRow) row.push(null);
+    for (let i = 0; i < beds.length; i += BEDS_PER_ROW) {
+      const row: (Bed | null)[] = beds.slice(i, i + BEDS_PER_ROW);
+      while (row.length < BEDS_PER_ROW) row.push(null);
       rows.push(row);
     }
-    if (rows.length === 0) rows.push(Array(bedsPerRow).fill(null));
+    if (rows.length === 0) rows.push(Array(BEDS_PER_ROW).fill(null));
     return rows;
-  }, [beds, bedsPerRow]);
+  }, [beds]);
 
   const handleEdit = useCallback(() => {
     setTitleInput(title);

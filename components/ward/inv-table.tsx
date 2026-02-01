@@ -51,6 +51,9 @@ function getCellContent(row: InvRow, key: string): { text?: string; image?: stri
   return { text, image };
 }
 
+/** Empty canvas PNG base64 is ~100–300 chars; actual drawings are larger. */
+const MEANINGFUL_DRAWING_MIN_LENGTH = 400;
+
 /** Presentational cell content; touch is handled by parent GestureDetector so long-press vs tap work correctly. */
 function InvCell({
   row,
@@ -63,35 +66,23 @@ function InvCell({
 }) {
   const content = getCellContent(row, columnKey);
   const isDateColumn = columnKey === 'date';
-  const showImage = !isDateColumn && content.image;
+  const hasText = Boolean(content.text?.trim());
+  const hasDrawing =
+    !isDateColumn &&
+    Boolean(content.image?.trim() && content.image.length >= MEANINGFUL_DRAWING_MIN_LENGTH);
   const displayText = isDateColumn && content.text
     ? formatDisplayDate(content.text)
-    : content.text;
+    : content.text?.trim() || undefined;
 
   const style = width > 0 ? { width } : { flex: 1 };
+  const isEmpty = isDateColumn ? !hasText : !hasText && !hasDrawing;
 
   return (
     <View
       className="min-h-10 justify-center border-r border-border p-2 last:border-r-0"
       style={style}
     >
-      {showImage ? (
-        <View className="aspect-video overflow-hidden rounded">
-          <Image
-            source={{ uri: content.image }}
-            className="h-full w-full"
-            resizeMode="contain"
-          />
-        </View>
-      ) : displayText ? (
-        <Text
-          variant="small"
-          className="text-foreground line-clamp-3"
-          numberOfLines={3}
-        >
-          {displayText}
-        </Text>
-      ) : (
+      {isEmpty ? (
         <View className="flex-row items-center gap-1">
           <Icon as={Pen} size={12} className="text-muted-foreground" />
           <Text variant="small" className="text-muted-foreground" numberOfLines={2}>
@@ -101,6 +92,31 @@ function InvCell({
                 ? 'No investigation added'
                 : 'No findings added'}
           </Text>
+        </View>
+      ) : (
+        <View className="gap-1.5">
+          {displayText ? (
+            <Text
+              variant="small"
+              className="text-foreground line-clamp-3"
+              numberOfLines={3}
+            >
+              {displayText}
+            </Text>
+          ) : null}
+          {hasDrawing && content.image ? (
+            <View className="aspect-video max-w-full overflow-hidden rounded">
+              <Image
+                source={{
+                  uri: content.image.startsWith('data:')
+                    ? content.image
+                    : `data:image/png;base64,${content.image}`,
+                }}
+                className="h-full w-full"
+                resizeMode="contain"
+              />
+            </View>
+          ) : null}
         </View>
       )}
     </View>

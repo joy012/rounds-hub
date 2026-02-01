@@ -2,7 +2,6 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { Bed, InvRow, Ward } from './types';
-import { formatDisplayDate } from './utils';
 
 const PDF_HTML_STYLE = `
   <style>
@@ -163,7 +162,20 @@ function dataUrl(img: string | undefined): string {
   return img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
 }
 
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 function formatPrintDate(): string {
   const d = new Date();
@@ -198,16 +210,6 @@ function buildPatientBlock(patient: NonNullable<Bed['patient']>, bedNumber: numb
     items.push(`<div class="patient-item"><strong>Name</strong> ${escapeHtml(patient.name)}</div>`);
   if (patient.age != null)
     items.push(`<div class="patient-item"><strong>Age</strong> ${patient.age}</div>`);
-  if (patient.gender)
-    items.push(`<div class="patient-item"><strong>Gender</strong> ${escapeHtml(patient.gender)}</div>`);
-  if (patient.admissionDate)
-    items.push(
-      `<div class="patient-item"><strong>Admission</strong> ${escapeHtml(formatDisplayDate(patient.admissionDate))}</div>`
-    );
-  if (patient.dischargeDate)
-    items.push(
-      `<div class="patient-item"><strong>Discharge</strong> ${escapeHtml(formatDisplayDate(patient.dischargeDate))}</div>`
-    );
   if (items.length === 0) return '';
   return `
   <div class="patient-block">
@@ -216,7 +218,10 @@ function buildPatientBlock(patient: NonNullable<Bed['patient']>, bedNumber: numb
   </div>`;
 }
 
-function buildDxPlanSection(label: string, content: { text?: string; image?: string } | undefined): string {
+function buildDxPlanSection(
+  label: string,
+  content: { text?: string; image?: string } | undefined
+): string {
   if (!content?.text && !content?.image) return '';
   const parts: string[] = [];
   if (content.text) parts.push(`<p>${escapeHtml(content.text)}</p>`);
@@ -275,10 +280,9 @@ export function buildBedPdfHtml(bed: Bed, ward: Ward): string {
   const patientHtml = patient
     ? buildPatientBlock(patient, bed.number)
     : `<div class="patient-block"><p class="patient-block-title">Patient details</p><div class="patient-grid"><div class="patient-item"><strong>Bed No.</strong> ${bed.number}</div><div class="patient-item"><span class="muted">No patient data</span></div></div></div>`;
-  const dxHtml = patient?.dx ? buildDxPlanSection('Diagnosis (Dx)', patient.dx) : '';
+  const dxHtml = patient?.dx ? buildDxPlanSection('Diagnosis', patient.dx) : '';
   const planHtml = patient?.plan ? buildDxPlanSection('Plan', patient.plan) : '';
   const invHtml = patient?.inv ? buildInvTable(patient.inv) : '';
-  const footerHtml = buildFooter(ward, bed.number);
 
   return `
   <!DOCTYPE html>
@@ -288,9 +292,8 @@ export function buildBedPdfHtml(bed: Bed, ward: Ward): string {
     ${headerHtml}
     ${patientHtml}
     ${dxHtml}
-    ${planHtml}
     ${invHtml}
-    ${footerHtml}
+    ${planHtml}
   </body>
   </html>`;
 }

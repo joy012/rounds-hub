@@ -188,7 +188,7 @@ export default function BedDetailsScreen() {
                 <Icon as={FileText} size={16} className="text-info" />
               </View>
               <CardTitle>
-                <Text className="text-sm font-semibold text-foreground">Dx</Text>
+                <Text className="text-sm font-semibold text-foreground">Diagnosis</Text>
               </CardTitle>
             </View>
           </CardHeader>
@@ -199,7 +199,7 @@ export default function BedDetailsScreen() {
               onChange={(dx) => handlePatientChange({ ...patientData, dx })}
               onPenModeChange={setDxPenActive}
               placeholder="Diagnosis notes..."
-              sectionName="Dx"
+              sectionName="Diagnosis"
             />
           </CardContent>
         </Card>
