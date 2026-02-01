@@ -9,9 +9,9 @@
     "web": "expo start -c --web",
     "start:android": "expo start -c --android",
     "prebuild:clean": "expo prebuild --clean",
-    "build:apk": "expo prebuild --platform android && cd android && ./gradlew assembleRelease",
-    "build:apk:release": "expo prebuild --clean --platform android && cd android && ./gradlew assembleRelease",
-    "build:aab": "expo prebuild --platform android && cd android && ./gradlew bundleRelease",
+    "build:apk": "expo prebuild --platform android && node scripts/ensure-android-sdk.js && cd android && ./gradlew assembleRelease",
+    "build:apk:release": "expo prebuild --clean --platform android && node scripts/ensure-android-sdk.js && cd android && ./gradlew assembleRelease",
+    "build:aab": "expo prebuild --platform android && node scripts/ensure-android-sdk.js && cd android && ./gradlew bundleRelease",
     "clean": "rm -rf .expo node_modules"
   },
   "dependencies": {
