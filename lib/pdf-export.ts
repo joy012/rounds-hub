@@ -479,7 +479,8 @@ export function getSketchPdfFilename(title: string): string {
 
 export async function exportSketchToPdf(title: string, imageBase64: string | undefined): Promise<void> {
   const html = buildSketchPdfHtml(title, imageBase64);
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  // useMarkupFormatter: false so the WebView path is used and base64 images render in the PDF (iOS UIMarkupTextPrintFormatter doesn't display images)
+  const { uri } = await Print.printToFileAsync({ html, base64: false, useMarkupFormatter: false });
   const filename = getSketchPdfFilename(title);
   const docDir = FileSystem.documentDirectory;
   if (!docDir) throw new Error('Document directory is not available');
@@ -493,4 +494,24 @@ export async function exportSketchToPdf(title: string, imageBase64: string | und
   const canShare = await Sharing.isAvailableAsync();
   if (!canShare) throw new Error('Sharing is not available on this device');
   await Sharing.shareAsync(shareUri, { mimeType: 'application/pdf', dialogTitle: 'Save sketch PDF' });
+}
+
+/** Share sketch as PNG image (reliable; use when PDF export shows empty). */
+export async function shareSketchAsImage(title: string, imageBase64: string | undefined): Promise<void> {
+  if (!imageBase64?.trim()) throw new Error('No drawing to share');
+  const raw = imageBase64.replace(/\s/g, '');
+  const base64Only = raw.startsWith('data:') ? raw.replace(/^data:image\/\w+;base64,/, '') : raw;
+  if (!base64Only) throw new Error('Invalid image data');
+  const docDir = FileSystem.documentDirectory;
+  if (!docDir) throw new Error('Document directory is not available');
+  const safe = (title?.trim() || 'sketch').replace(/[^a-zA-Z0-9-_ ]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'sketch';
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = `RoundsHub-sketch-${safe}-${date}.png`;
+  const fileUri = docDir.endsWith('/') ? `${docDir}${filename}` : `${docDir}/${filename}`;
+  await FileSystem.writeAsStringAsync(fileUri, base64Only, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const canShare = await Sharing.isAvailableAsync();
+  if (!canShare) throw new Error('Sharing is not available on this device');
+  await Sharing.shareAsync(fileUri, { mimeType: 'image/png', dialogTitle: 'Save sketch' });
 }

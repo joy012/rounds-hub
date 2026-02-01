@@ -4,14 +4,14 @@ import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { ConsentModal } from '@/components/ward/modal-confirmation';
 import { THEME } from '@/lib/theme';
-import { exportSketchToPdf } from '@/lib/pdf-export';
+import { shareSketchAsImage } from '@/lib/pdf-export';
 import {
   loadSketches,
   saveSketches,
   sketchDisplayTitle,
   type Sketch,
 } from '@/lib/sketches-storage';
-import { CheckCircle, Download, Eraser, Pencil, Trash2, ChevronLeft } from 'lucide-react-native';
+import { CheckCircle, Eraser, Pencil, Share2, Trash2, ChevronLeft } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -45,7 +45,7 @@ const PEN_COLORS = [
 /** Stable initial pen color for SignatureView so changing color doesn't reload the WebView (which would clear the canvas). We use ref.changePenColor() to update color. */
 const INITIAL_PEN_COLOR = PEN_COLORS[0].hex;
 
-type PendingAction = 'back' | 'save' | 'export' | null;
+type PendingAction = 'back' | 'save' | 'share' | null;
 
 export default function SketchCanvasScreen() {
   const insets = useSafeAreaInsets();
@@ -180,20 +180,20 @@ export default function SketchCanvasScreen() {
         return;
       }
 
-      if (action === 'export') {
+      if (action === 'share') {
         setExporting(true);
         const fromCanvas = image?.trim() ? image : undefined;
         const finalImage = fromCanvas ?? currentImage?.trim() ?? undefined;
         if (!finalImage) {
           setExporting(false);
-          Toast.show({ type: 'error', text1: 'No drawing to export. Draw something first.' });
+          Toast.show({ type: 'error', text1: 'No drawing to share. Draw something first.' });
           return;
         }
-        exportSketchToPdf(title.trim() || 'Untitled sketch', finalImage)
+        shareSketchAsImage(title.trim() || 'Untitled sketch', finalImage)
           .then(() => setExporting(false))
           .catch(() => {
             setExporting(false);
-            Toast.show({ type: 'error', text1: 'Failed to export PDF' });
+            Toast.show({ type: 'error', text1: 'Failed to share image' });
           });
       }
     },
@@ -213,9 +213,9 @@ export default function SketchCanvasScreen() {
     signatureRef.current?.readSignature();
   }, []);
 
-  const handleExportPdf = useCallback(() => {
+  const handleShare = useCallback(() => {
     Keyboard.dismiss();
-    pendingActionRef.current = 'export';
+    pendingActionRef.current = 'share';
     signatureRef.current?.readSignature();
   }, []);
 
@@ -343,11 +343,11 @@ export default function SketchCanvasScreen() {
               <Icon as={CheckCircle} size={20} className="text-primary" />
             )}
           </Button>
-          <Button size="icon" variant="ghost" className="h-8 w-8" onPress={handleExportPdf} disabled={exporting}>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onPress={handleShare} disabled={exporting}>
             {exporting ? (
               <ActivityIndicator size="small" color={theme.primary} />
             ) : (
-              <Icon as={Download} size={20} className="text-blue-600 dark:text-blue-400" />
+              <Icon as={Share2} size={20} className="text-blue-600 dark:text-blue-400" />
             )}
           </Button>
           <Button size="icon" variant="ghost" className="h-8 w-8" onPress={handleDelete}>

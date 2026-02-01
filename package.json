@@ -10,6 +10,8 @@
     "start:android": "expo start -c --android",
     "prebuild:clean": "expo prebuild --clean",
     "build:apk": "expo prebuild --platform android && cd android && ./gradlew assembleRelease",
+    "build:apk:release": "expo prebuild --clean --platform android && cd android && ./gradlew assembleRelease",
+    "build:aab": "expo prebuild --platform android && cd android && ./gradlew bundleRelease",
     "clean": "rm -rf .expo node_modules"
   },
   "dependencies": {
@@ -37,6 +39,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "~54.0.29",
+    "expo-build-properties": "^1.0.10",
     "expo-constants": "~18.0.12",
     "expo-document-picker": "^14.0.8",
     "expo-file-system": "^19.0.21",
