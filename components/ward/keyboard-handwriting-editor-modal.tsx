@@ -5,6 +5,7 @@ import {
   KeyboardAndHandwritingEditor,
   type KeyboardAndHandwritingEditorRef,
 } from '@/components/ward/keyboard-handwriting-editor';
+import { ConsentModal } from '@/components/ward/modal-confirmation';
 import { THEME } from '@/lib/theme';
 import type { DxPlanContent } from '@/lib/types';
 import { X } from 'lucide-react-native';
@@ -30,6 +31,8 @@ export interface KeyboardHandwritingEditorModalProps {
   value: DxPlanContent | undefined;
   onSave: (value: DxPlanContent) => void;
   placeholder?: string;
+  /** Quick phrases to insert into text (tap to append). */
+  insertPhrases?: string[];
 }
 
 export function KeyboardHandwritingEditorModal({
@@ -39,6 +42,7 @@ export function KeyboardHandwritingEditorModal({
   value,
   onSave,
   placeholder = 'Type or draw...',
+  insertPhrases = [],
 }: KeyboardHandwritingEditorModalProps) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -49,11 +53,41 @@ export function KeyboardHandwritingEditorModal({
 
   const [draft, setDraft] = useState<DxPlanContent | undefined>(value);
   const [saving, setSaving] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const editorRef = useRef<KeyboardAndHandwritingEditorRef>(null);
 
   useEffect(() => {
     if (open) setDraft(value);
   }, [open, value]);
+
+  const hasUnsavedChanges = useCallback(
+    (a: DxPlanContent | undefined, b: DxPlanContent | undefined) => {
+      const textA = a?.text ?? '';
+      const textB = b?.text ?? '';
+      const imgA = a?.image ?? '';
+      const imgB = b?.image ?? '';
+      return textA.trim() !== textB.trim() || imgA !== imgB;
+    },
+    []
+  );
+
+  const handleClose = useCallback(() => {
+    onOpenChange(false);
+    setShowDiscardConfirm(false);
+  }, [onOpenChange]);
+
+  const handleCancel = useCallback(() => {
+    if (hasUnsavedChanges(draft, value)) {
+      setShowDiscardConfirm(true);
+    } else {
+      handleClose();
+    }
+  }, [draft, value, hasUnsavedChanges, handleClose]);
+
+  const handleConfirmDiscard = useCallback(() => {
+    setShowDiscardConfirm(false);
+    handleClose();
+  }, [handleClose]);
 
   const handleSave = useCallback(async () => {
     const editor = editorRef.current;
@@ -62,15 +96,22 @@ export function KeyboardHandwritingEditorModal({
     try {
       const content = await editor.getContent();
       onSave(content);
-      onOpenChange(false);
+      handleClose();
     } finally {
       setSaving(false);
     }
-  }, [onSave, onOpenChange]);
+  }, [onSave, handleClose]);
 
-  const handleCancel = useCallback(() => {
-    onOpenChange(false);
-  }, [onOpenChange]);
+  const handleInsertPhrase = useCallback(
+    (phrase: string) => {
+      setDraft((prev) => {
+        const current = prev?.text ?? '';
+        const sep = current.length > 0 && !current.endsWith(' ') ? ' ' : '';
+        return { ...prev, text: current + sep + phrase, image: prev?.image };
+      });
+    },
+    []
+  );
 
   if (!open) return null;
 
@@ -79,7 +120,7 @@ export function KeyboardHandwritingEditorModal({
       visible={open}
       transparent
       animationType="slide"
-      onRequestClose={handleCancel}
+      onRequestClose={() => handleCancel()}
       statusBarTranslucent
     >
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
@@ -147,6 +188,37 @@ export function KeyboardHandwritingEditorModal({
             keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator
           >
+            {insertPhrases.length > 0 ? (
+              <View style={{ marginBottom: 12 }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8 }}
+                >
+                  {insertPhrases.map((phrase, index) => (
+                    <Pressable
+                      key={`${index}-${phrase.slice(0, 20)}`}
+                      onPress={() => handleInsertPhrase(phrase)}
+                      style={({ pressed }) => ({
+                        opacity: pressed ? 0.8 : 1,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        backgroundColor: theme.primary + '20',
+                        borderWidth: 1,
+                        borderColor: theme.primary + '40',
+                      })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Insert ${phrase}`}
+                    >
+                      <Text variant="small" className="text-foreground" numberOfLines={1}>
+                        {phrase}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
             <KeyboardAndHandwritingEditor
               ref={editorRef}
               value={draft}
@@ -185,6 +257,16 @@ export function KeyboardHandwritingEditorModal({
           </View>
         </View>
       </View>
+      <ConsentModal
+        open={showDiscardConfirm}
+        onOpenChange={setShowDiscardConfirm}
+        title="Discard changes?"
+        description="You have unsaved changes. Discard them?"
+        confirmText="Discard"
+        cancelText="Keep editing"
+        variant="warning"
+        onConfirm={handleConfirmDiscard}
+      />
     </Modal>
   );
 }

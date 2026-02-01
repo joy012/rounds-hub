@@ -21,7 +21,7 @@ import {
   UserMinus,
   X,
 } from 'lucide-react-native';
-import { useCallback, useMemo, useReducer } from 'react';
+import { useCallback, useMemo, useReducer, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -134,7 +134,6 @@ export default function BedDetailsScreen() {
   const { ward, getBed, updateBedPatient, deleteBed, dischargePatient } = useWard();
   const bed = id ? getBed(id) : undefined;
   const [state, dispatch] = useReducer(bedDetailsReducer, initialBedDetailsState);
-
   const patient = useMemo(() => bed?.patient, [bed?.patient]);
   const patientData = useMemo(() => patient ?? {}, [patient]);
 
@@ -169,7 +168,6 @@ export default function BedDetailsScreen() {
     if (!id) return;
     await dischargePatient(id);
     dispatch({ type: 'SET_CONFIRM_DISCHARGE', value: false });
-    Toast.show({ type: 'success', text1: 'Patient discharged from bed', position: 'top' });
     router.back();
   }, [id, dischargePatient, router]);
 
@@ -177,7 +175,6 @@ export default function BedDetailsScreen() {
     if (!id) return;
     await deleteBed(id);
     dispatch({ type: 'SET_CONFIRM_DELETE', value: false });
-    Toast.show({ type: 'success', text1: 'Bed removed from ward', position: 'top' });
     router.back();
   }, [id, deleteBed, router]);
 
@@ -186,7 +183,6 @@ export default function BedDetailsScreen() {
     dispatch({ type: 'SET_EXPORTING_PDF', value: true });
     try {
       await exportBedToPdf(bed, ward);
-      Toast.show({ type: 'success', text1: 'Bed PDF ready to save or share', position: 'top' });
     } catch {
       Toast.show({ type: 'error', text1: 'Failed to create bed PDF', position: 'top' });
     } finally {

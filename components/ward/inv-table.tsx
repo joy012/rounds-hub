@@ -201,7 +201,6 @@ export function InvTable({ rows, onChange }: InvTableProps) {
       return next;
     });
     setConfirmRemoveId(null);
-    Toast.show({ type: 'success', text1: 'Investigation row removed', position: 'top' });
   }, [confirmRemoveId, onChange]);
 
   const editingRow = useMemo(

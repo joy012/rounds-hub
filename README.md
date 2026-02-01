@@ -63,7 +63,7 @@
 - **[React Native Reusables](https://reactnativereusables.com)** / **@rn-primitives** — UI components (Button, Card, Input, Select, Dialog, etc.)
 - **[AsyncStorage](https://react-native-async-storage.github.io/async-storage/)** — Local persistence (ward data)
 - **expo-print**, **expo-sharing**, **expo-file-system** — PDF generation and share
-- **react-native-signature-canvas** — Handwriting/sketch for Dx and Plan
+- **react-native-signature-canvas** — Handwriting/sketch for Dx and Plan (no palm rejection; library does not expose touch filtering — use pen or careful finger input to avoid accidental strokes)
 - **react-native-toast-message** — In-app feedback toasts
 - **react-native-gesture-handler**, **react-native-reanimated** — Gestures and animations
 - **TypeScript** — Typed models and app logic

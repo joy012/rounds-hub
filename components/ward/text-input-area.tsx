@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
+import { ConsentModal } from '@/components/ward/modal-confirmation';
 import { THEME } from '@/lib/theme';
 import type { DxPlanContent } from '@/lib/types';
 import { Eraser, Pencil, Save } from 'lucide-react-native';
@@ -10,7 +11,6 @@ import { useColorScheme } from 'nativewind';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Keyboard, StyleSheet, View } from 'react-native';
 import SignatureView, { type SignatureViewRef } from 'react-native-signature-canvas';
-import Toast from 'react-native-toast-message';
 
 export interface TextInputAreaProps {
   label: string;
@@ -18,7 +18,7 @@ export interface TextInputAreaProps {
   onChange: (value: DxPlanContent) => void;
   onPenModeChange?: (active: boolean) => void;
   placeholder?: string;
-  /** Section name for toast, e.g. "Dx" or "Plan" */
+  /** Section name for toast, e.g. "Diagnosis" or "Plan" */
   sectionName?: string;
   /** When true, start in edit mode (e.g. when opened in a modal) */
   initialEditing?: boolean;
@@ -44,6 +44,7 @@ export function TextInputArea({
   const [canvasKey, setCanvasKey] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
   const [pendingTool, setPendingTool] = useState<null | 'pen' | 'eraser'>(null);
+  const [showDiscardDrawingConfirm, setShowDiscardDrawingConfirm] = useState(false);
   const signatureRef = useRef<SignatureViewRef>(null);
   const draftRef = useRef(draftText);
   const valueRef = useRef(value);
@@ -107,18 +108,9 @@ export function TextInputArea({
   const hasMeaningfulDrawing = Boolean(image?.trim() && image.length > 400);
   const hasContent = Boolean(text?.trim() || hasMeaningfulDrawing);
 
-  const showSavedToast = useCallback(
-    (message: string) => {
-      const title = sectionName ? `${sectionName} saved` : message;
-      Toast.show({
-        type: 'success',
-        text1: title,
-        text2: 'Text and drawing saved.',
-        position: 'top',
-      });
-    },
-    [sectionName]
-  );
+  const showSavedToast = useCallback(() => {
+    // Success toast removed — only show toast on error
+  }, []);
 
   const pendingSaveRef = useRef(false);
 
@@ -134,7 +126,7 @@ export function TextInputArea({
       onChangeRef.current({ text: text || undefined, image: image || undefined });
       if (pendingSaveRef.current) {
         pendingSaveRef.current = false;
-        showSavedToast('Saved');
+        showSavedToast();
         setIsEditing(false);
         exitDrawingMode();
       }
@@ -150,7 +142,7 @@ export function TextInputArea({
         pendingSaveRef.current = false;
         const text = draftRef.current?.trim() || undefined;
         onChangeRef.current({ text: text || undefined, image: valueRef.current?.image });
-        showSavedToast('Saved');
+        showSavedToast();
         setIsEditing(false);
         exitDrawingMode();
       }
@@ -196,6 +188,16 @@ export function TextInputArea({
   }, [canvasReady, onPenModeChange]);
 
   const handleCancelDrawing = useCallback(() => {
+    if (hasMeaningfulDrawing) {
+      setShowDiscardDrawingConfirm(true);
+    } else {
+      setCanvasKey((k) => k + 1);
+      exitDrawingMode();
+    }
+  }, [exitDrawingMode, hasMeaningfulDrawing]);
+
+  const handleConfirmDiscardDrawing = useCallback(() => {
+    setShowDiscardDrawingConfirm(false);
     setCanvasKey((k) => k + 1);
     exitDrawingMode();
   }, [exitDrawingMode]);
@@ -366,6 +368,16 @@ export function TextInputArea({
           </Button>
         </View>
       </View>
+      <ConsentModal
+        open={showDiscardDrawingConfirm}
+        onOpenChange={setShowDiscardDrawingConfirm}
+        title="Discard drawing?"
+        description="This will discard the current drawing. Continue?"
+        confirmText="Discard"
+        cancelText="Keep editing"
+        variant="warning"
+        onConfirm={handleConfirmDiscardDrawing}
+      />
     </View>
   );
 }
