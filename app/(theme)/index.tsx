@@ -1,5 +1,11 @@
 import { LoadingScreen } from '@/components/ui/loading-screen';
-import { BedCard, BED_CARD_HEIGHT_DEFAULT, BED_CARD_HEIGHT_WITH_DX } from '@/components/ward/bed-card';
+import {
+  BedCard,
+  BED_CARD_HEIGHT_DEFAULT,
+  BED_CARD_HEIGHT_WITH_DX,
+  BED_CARD_HEIGHT_DEFAULT_TABLET,
+  BED_CARD_HEIGHT_WITH_DX_TABLET,
+} from '@/components/ward/bed-card';
 import { ConsentModal } from '@/components/ward/modal-confirmation';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -79,13 +85,15 @@ export default function HomeScreen() {
     return rows;
   }, [beds]);
 
-  /** Per-row card height so all cells in a row match the tallest (diagnosis preview). */
+  /** Per-row card height so all cells in a row match the tallest (diagnosis preview). Larger on tablet. */
   const rowCardHeights = useMemo(() => {
+    const defaultH = isTablet ? BED_CARD_HEIGHT_DEFAULT_TABLET : BED_CARD_HEIGHT_DEFAULT;
+    const withDxH = isTablet ? BED_CARD_HEIGHT_WITH_DX_TABLET : BED_CARD_HEIGHT_WITH_DX;
     return gridRows.map((row) => {
       const hasDxInRow = row.some((b) => bedHasDiagnosis(b));
-      return hasDxInRow ? BED_CARD_HEIGHT_WITH_DX : BED_CARD_HEIGHT_DEFAULT;
+      return hasDxInRow ? withDxH : defaultH;
     });
-  }, [gridRows]);
+  }, [gridRows, isTablet]);
 
   const handleEdit = useCallback(() => {
     setTitleInput(title);
@@ -316,7 +324,9 @@ export default function HomeScreen() {
           </View>
           <View style={{ gap: ROW_GAP }}>
             {gridRows.map((row, rowIndex) => {
-              const rowCardHeight = rowCardHeights[rowIndex] ?? BED_CARD_HEIGHT_DEFAULT;
+              const rowCardHeight =
+                rowCardHeights[rowIndex] ??
+                (isTablet ? BED_CARD_HEIGHT_DEFAULT_TABLET : BED_CARD_HEIGHT_DEFAULT);
               return (
                 <View key={rowIndex} className="flex-row" style={{ gap: COL_GAP }}>
                   {row.map((bed, colIndex) => (
@@ -330,6 +340,7 @@ export default function HomeScreen() {
                             }
                             className="w-full"
                             cardHeight={rowCardHeight}
+                            isTablet={isTablet}
                           />
                           <View className="mt-2 flex-row flex-shrink-0 flex-wrap items-center gap-1.5">
                           {bed.patient && (
