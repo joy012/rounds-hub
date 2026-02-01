@@ -10,10 +10,14 @@ export interface BedCardProps {
   bed: Bed;
   onPress: () => void;
   className?: string;
+  /** When set, card uses this height so all cells in a row match. */
+  cardHeight?: number;
 }
 
-/** Fixed height so all bed cells in a row are the same size. */
-const CARD_HEIGHT = 80;
+/** Default card height when no diagnosis preview. */
+export const BED_CARD_HEIGHT_DEFAULT = 80;
+/** Card height when row has diagnosis (text or drawing) so preview fits. */
+export const BED_CARD_HEIGHT_WITH_DX = 110;
 
 /** Empty canvas PNG base64 is ~100–300 chars; actual drawings are larger. */
 const MEANINGFUL_DRAWING_MIN_LENGTH = 400;
@@ -27,7 +31,7 @@ function hasDxText(dx: DxPlanContent | undefined): boolean {
   return Boolean(dx?.text?.trim());
 }
 
-export function BedCard({ bed, onPress, className }: BedCardProps) {
+export function BedCard({ bed, onPress, className, cardHeight }: BedCardProps) {
   const hasPatient = hasBedPatientData(bed);
   const dx = bed.patient?.dx;
   const showDxText = hasDxText(dx);
@@ -35,6 +39,8 @@ export function BedCard({ bed, onPress, className }: BedCardProps) {
   const showDiagnosis = showDxText || showDxDrawing;
   /** If no diagnosis but has other patient data, show user icon. */
   const showUserIcon = hasPatient && !showDiagnosis;
+
+  const height = cardHeight ?? BED_CARD_HEIGHT_DEFAULT;
 
   return (
     <Pressable
@@ -46,7 +52,7 @@ export function BedCard({ bed, onPress, className }: BedCardProps) {
       })}
     >
       <View
-        style={{ height: CARD_HEIGHT }}
+        style={{ height }}
         className={cn(
           'overflow-hidden rounded-xl border-2 shadow-premium',
           hasPatient

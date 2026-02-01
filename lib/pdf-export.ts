@@ -100,8 +100,7 @@ const PDF_HTML_STYLE = `
       max-height: 120px;
       object-fit: contain;
       margin-top: 6px;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
+      background: #fff;
     }
     table.inv-table {
       width: 100%;
@@ -131,8 +130,7 @@ const PDF_HTML_STYLE = `
       max-height: 60px;
       object-fit: contain;
       margin-top: 4px;
-      border: 1px solid #e5e5e5;
-      border-radius: 3px;
+      background: #fff;
     }
     .footer {
       margin-top: 28px;

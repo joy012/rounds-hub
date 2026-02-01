@@ -1,5 +1,5 @@
 import { LoadingScreen } from '@/components/ui/loading-screen';
-import { BedCard } from '@/components/ward/bed-card';
+import { BedCard, BED_CARD_HEIGHT_DEFAULT, BED_CARD_HEIGHT_WITH_DX } from '@/components/ward/bed-card';
 import { ConsentModal } from '@/components/ward/modal-confirmation';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -34,11 +34,16 @@ const CONTENT_PX = 16;
 const TABLET_BREAKPOINT = 600;
 const ADD_BUTTON_WIDTH_TABLET = 80;
 const CUSTOM_BUTTON_WIDTH_TABLET = 110;
-/** Match bed cell total height (card 80 + gap 8 + action row 32) so all row cells align. */
-const BED_CELL_MIN_HEIGHT = 120;
-
 /** Always 4 beds per row on any device (4x4 grid). */
 const BEDS_PER_ROW = 4;
+
+/** True if bed has diagnosis text or meaningful drawing (used to compute row card height). */
+function bedHasDiagnosis(bed: Bed | null): boolean {
+  if (!bed?.patient?.dx) return false;
+  const dx = bed.patient.dx;
+  if (dx.text?.trim()) return true;
+  return Boolean(dx.image?.trim() && dx.image.length >= 400);
+}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -73,6 +78,14 @@ export default function HomeScreen() {
     if (rows.length === 0) rows.push(Array(BEDS_PER_ROW).fill(null));
     return rows;
   }, [beds]);
+
+  /** Per-row card height so all cells in a row match the tallest (diagnosis preview). */
+  const rowCardHeights = useMemo(() => {
+    return gridRows.map((row) => {
+      const hasDxInRow = row.some((b) => bedHasDiagnosis(b));
+      return hasDxInRow ? BED_CARD_HEIGHT_WITH_DX : BED_CARD_HEIGHT_DEFAULT;
+    });
+  }, [gridRows]);
 
   const handleEdit = useCallback(() => {
     setTitleInput(title);
@@ -302,20 +315,23 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View style={{ gap: ROW_GAP }}>
-            {gridRows.map((row, rowIndex) => (
-              <View key={rowIndex} className="flex-row" style={{ gap: COL_GAP }}>
-                {row.map((bed, colIndex) => (
-                  <View key={bed ? bed.id : `e-${rowIndex}-${colIndex}`} className="flex-1 min-w-0">
-                    {bed ? (
-                      <>
-                        <BedCard
-                          bed={bed}
-                          onPress={() =>
-                            router.push({ pathname: '/bed/[id]', params: { id: bed.id } })
-                          }
-                          className="w-full"
-                        />
-                        <View className="mt-2 flex-row flex-shrink-0 flex-wrap items-center gap-1.5">
+            {gridRows.map((row, rowIndex) => {
+              const rowCardHeight = rowCardHeights[rowIndex] ?? BED_CARD_HEIGHT_DEFAULT;
+              return (
+                <View key={rowIndex} className="flex-row" style={{ gap: COL_GAP }}>
+                  {row.map((bed, colIndex) => (
+                    <View key={bed ? bed.id : `e-${rowIndex}-${colIndex}`} className="flex-1 min-w-0">
+                      {bed ? (
+                        <>
+                          <BedCard
+                            bed={bed}
+                            onPress={() =>
+                              router.push({ pathname: '/bed/[id]', params: { id: bed.id } })
+                            }
+                            className="w-full"
+                            cardHeight={rowCardHeight}
+                          />
+                          <View className="mt-2 flex-row flex-shrink-0 flex-wrap items-center gap-1.5">
                           {bed.patient && (
                             <Button
                               size={isTablet ? 'sm' : 'icon'}
@@ -353,15 +369,19 @@ export default function HomeScreen() {
                         </View>
                       </>
                     ) : (
-                      <View
-                        className="min-w-0 rounded-xl border border-dashed border-border/80 bg-muted/10 dark:bg-muted/5"
-                        style={{ minHeight: BED_CELL_MIN_HEIGHT }}
-                      />
+                      <View className="min-w-0">
+                        <View
+                          className="min-w-0 rounded-xl border border-dashed border-border/80 bg-muted/10 dark:bg-muted/5"
+                          style={{ height: rowCardHeight }}
+                        />
+                        <View style={{ height: 8 + 32 }} />
+                      </View>
                     )}
                   </View>
                 ))}
-              </View>
-            ))}
+                </View>
+              );
+            })}
           </View>
         </ScrollView>
 

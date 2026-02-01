@@ -1,16 +1,21 @@
 import { Button } from '@/components/ui/button';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { Icon } from '@/components/ui/icon';
+import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { InvCellEditor } from '@/components/ward/inv-cell-editor';
 import { ConsentModal } from '@/components/ward/modal-confirmation';
 import type { DxPlanContent, InvRow } from '@/lib/types';
 import { formatDisplayDate, generateId } from '@/lib/utils';
-import { GripHorizontal, GripVertical, Pen, Plus, Save } from 'lucide-react-native';
+import { GripHorizontal, GripVertical, Pen, Plus, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
+  StyleSheet,
   useWindowDimensions,
   View,
   type ViewStyle,
@@ -59,27 +64,32 @@ function InvCell({
   row,
   columnKey,
   width,
+  isLastColumn,
 }: {
   row: InvRow;
   columnKey: string;
   width: number;
+  isLastColumn?: boolean;
 }) {
   const content = getCellContent(row, columnKey);
   const isDateColumn = columnKey === 'date';
   const hasText = Boolean(content.text?.trim());
-  const hasDrawing =
+  /** Meaningful drawing only (for isEmpty); avoids counting empty canvas as content. */
+  const hasMeaningfulDrawing =
     !isDateColumn &&
     Boolean(content.image?.trim() && content.image.length >= MEANINGFUL_DRAWING_MIN_LENGTH);
+  /** Any non-empty image (for display); so keyboard text + handwriting both show. */
+  const hasAnyImage = !isDateColumn && Boolean(content.image?.trim());
   const displayText = isDateColumn && content.text
     ? formatDisplayDate(content.text)
     : content.text?.trim() || undefined;
 
   const style = width > 0 ? { width } : { flex: 1 };
-  const isEmpty = isDateColumn ? !hasText : !hasText && !hasDrawing;
+  const isEmpty = isDateColumn ? !hasText : !hasText && !hasMeaningfulDrawing;
 
   return (
     <View
-      className="min-h-10 justify-center border-r border-border p-2 last:border-r-0"
+      className={`min-h-10 justify-center p-2 ${isLastColumn ? 'border-r-0' : 'border-r border-border dark:border-border'}`}
       style={style}
     >
       {isEmpty ? (
@@ -104,7 +114,7 @@ function InvCell({
               {displayText}
             </Text>
           ) : null}
-          {hasDrawing && content.image ? (
+          {hasAnyImage && content.image ? (
             <View className="aspect-video max-w-full overflow-hidden rounded">
               <Image
                 source={{
@@ -134,9 +144,10 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
   const [columnRatios, setColumnRatios] = useState(DEFAULT_COL_RATIOS);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [editingDateRowId, setEditingDateRowId] = useState<string | null>(null);
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
-    column: 'date' | 'investigation' | 'findings';
+    column: 'investigation' | 'findings';
   } | null>(null);
   const rowHeightsRef = useRef<Record<string, number>>({});
 
@@ -154,11 +165,16 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
     );
   }, [rowHeights]);
 
-  const updateRow = useCallback((id: string, updates: Partial<InvRow>) => {
-    setDraftRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
-    );
-  }, []);
+  const updateRow = useCallback(
+    (id: string, updates: Partial<InvRow>) => {
+      setDraftRows((prev) => {
+        const next = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
+        onChange(next);
+        return next;
+      });
+    },
+    [onChange]
+  );
 
   const updateCell = useCallback(
     (rowId: string, column: 'date' | 'investigation' | 'findings', value: DxPlanContent) => {
@@ -173,20 +189,23 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
   );
 
   const addRow = useCallback(() => {
-    setDraftRows((prev) => [...prev, { id: generateId() }]);
-  }, []);
+    setDraftRows((prev) => {
+      const next = [...prev, { id: generateId() }];
+      onChange(next);
+      return next;
+    });
+  }, [onChange]);
 
-  const removeRow = useCallback(async () => {
+  const removeRow = useCallback(() => {
     if (!confirmRemoveId) return;
-    setDraftRows((prev) => prev.filter((r) => r.id !== confirmRemoveId));
+    setDraftRows((prev) => {
+      const next = prev.filter((r) => r.id !== confirmRemoveId);
+      onChange(next);
+      return next;
+    });
     setConfirmRemoveId(null);
     Toast.show({ type: 'success', text1: 'Investigation row removed', position: 'top' });
-  }, [confirmRemoveId]);
-
-  const handleSave = useCallback(() => {
-    onChange(draftRows);
-    Toast.show({ type: 'success', text1: 'Investigations table saved', position: 'top' });
-  }, [draftRows, onChange]);
+  }, [confirmRemoveId, onChange]);
 
   const editingRow = editingCell
     ? draftRows.find((r) => r.id === editingCell.rowId)
@@ -203,16 +222,10 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
             Long-press a row to remove it
           </Text>
         </View>
-        <View className="flex-row gap-2">
-          <Button size="sm" onPress={addRow} className="bg-primary">
-            <Icon as={Plus} size={16} />
-            <Text variant="small">Add row</Text>
-          </Button>
-          <Button size="sm" onPress={handleSave} className="bg-success">
-            <Icon as={Save} size={16} />
-            <Text variant="small">Save</Text>
-          </Button>
-        </View>
+        <Button size="sm" onPress={addRow} className="bg-primary">
+          <Icon as={Plus} size={16} />
+          <Text variant="small">Add row</Text>
+        </Button>
       </View>
       <View
         className="w-full overflow-hidden rounded-xl border border-border dark:border-border"
@@ -241,6 +254,7 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
                   rowHeightsRef.current[row.id] = h;
                   setRowHeights((prev) => ({ ...prev, [row.id]: h }));
                 }}
+                onDateCellPress={() => setEditingDateRowId(row.id)}
                 onCellPress={(col) => setEditingCell({ rowId: row.id, column: col })}
                 onRemove={() => setConfirmRemoveId(row.id)}
                 isTablet={isTablet}
@@ -249,6 +263,63 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
           </View>
         </ScrollView>
       </View>
+
+      {editingDateRowId !== null && (() => {
+        const row = draftRows.find((r) => r.id === editingDateRowId);
+        return row ? (
+          <Modal
+            visible
+            transparent
+            animationType="fade"
+            onRequestClose={() => setEditingDateRowId(null)}
+          >
+            <View style={styles.datePickerModalRoot}>
+              <View
+                style={[StyleSheet.absoluteFillObject, styles.datePickerOverlay]}
+                pointerEvents="none"
+              />
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => setEditingDateRowId(null)}
+              />
+              <View style={styles.datePickerSheetWrap} pointerEvents="box-none">
+                <View className="w-[90%] max-w-md rounded-2xl border border-border bg-card shadow-xl dark:border-border dark:bg-card">
+                  <View className="flex-row items-center justify-between border-b border-border px-5 py-4 dark:border-border">
+                    <Text variant="default" className="font-semibold text-foreground">
+                      Investigation date
+                    </Text>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9"
+                      onPress={() => setEditingDateRowId(null)}
+                      accessibilityLabel="Close"
+                    >
+                      <Icon as={X} size={20} className="text-muted-foreground" />
+                    </Button>
+                  </View>
+                  <View className="p-5">
+                    <Label>
+                      <Text variant="small" className="font-medium text-muted-foreground">
+                        Select date
+                      </Text>
+                    </Label>
+                    <DatePickerField
+                      value={row.date}
+                      onChange={(isoDate) => {
+                        updateRow(editingDateRowId, { date: isoDate });
+                        setEditingDateRowId(null);
+                      }}
+                      placeholder="Select date"
+                      accessibilityLabel="Investigation date"
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        ) : null;
+      })()}
 
       <InvCellEditor
         open={!!editingCell}
@@ -259,7 +330,7 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
           }
         }}
         row={editingRow ?? draftRows[0] ?? { id: '' }}
-        column={editingCell?.column ?? 'date'}
+        column={editingCell?.column ?? 'investigation'}
         onSave={
           editingCell
             ? (value) => {
@@ -430,6 +501,7 @@ function InvTableRow({
   columnRatios,
   height,
   onHeightChange,
+  onDateCellPress,
   onCellPress,
   onRemove,
   isTablet,
@@ -439,7 +511,8 @@ function InvTableRow({
   columnRatios: ColumnRatios;
   height: number;
   onHeightChange: (height: number) => void;
-  onCellPress: (column: 'date' | 'investigation' | 'findings') => void;
+  onDateCellPress: () => void;
+  onCellPress: (column: 'investigation' | 'findings') => void;
   onRemove: () => void;
   isTablet: boolean;
 }) {
@@ -470,9 +543,9 @@ function InvTableRow({
         .maxDuration(TAP_MAX_DURATION_MS)
         .requireExternalGestureToFail(longPressGesture)
         .onEnd(() => {
-          runOnJS(onCellPress)('date');
+          runOnJS(onDateCellPress)();
         }),
-    [longPressGesture, onCellPress]
+    [longPressGesture, onDateCellPress]
   );
   const tapInvestigation = useMemo(
     () =>
@@ -511,30 +584,52 @@ function InvTableRow({
       runOnJS(onHeightChange)(newHeight);
     });
 
-  const rowContent = (
+  const rowContent = isTablet ? (
+    <View
+      className="flex-row"
+      style={{ minHeight: height }}
+    >
+      {COLUMN_KEYS.map((key, index) => {
+        const tapGesture = tapGestures[key as keyof typeof tapGestures];
+        const colWidth = colWidths[key as keyof typeof colWidths];
+        const isLast = key === 'findings';
+        return (
+          <View key={key} className="flex-row flex-shrink-0">
+            <GestureDetector gesture={tapGesture}>
+              <View className="flex-shrink-0 active:bg-muted/50" style={{ width: colWidth }}>
+                <InvCell
+                  row={row}
+                  columnKey={key}
+                  width={colWidth}
+                  isLastColumn={isLast}
+                />
+              </View>
+            </GestureDetector>
+            {index < COLUMN_KEYS.length - 1 ? (
+              <View
+                className="flex-shrink-0 border-l border-border dark:border-border"
+                style={{ width: RESIZER_WIDTH, minWidth: RESIZER_WIDTH }}
+              />
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  ) : (
     <View
       className="flex-row"
       style={{ minHeight: height }}
     >
       {COLUMN_KEYS.map((key) => {
         const tapGesture = tapGestures[key as keyof typeof tapGestures];
-        return isTablet ? (
-          <GestureDetector key={key} gesture={tapGesture}>
-            <View className="flex-shrink-0 active:bg-muted/50" style={{ width: colWidths[key as keyof typeof colWidths] }}>
-              <InvCell
-                row={row}
-                columnKey={key}
-                width={colWidths[key as keyof typeof colWidths]}
-              />
-            </View>
-          </GestureDetector>
-        ) : (
+        return (
           <GestureDetector key={key} gesture={tapGesture}>
             <View className="min-w-0 flex-1 active:bg-muted/50">
               <InvCell
                 row={row}
                 columnKey={key}
                 width={0}
+                isLastColumn={key === 'findings'}
               />
             </View>
           </GestureDetector>
@@ -554,21 +649,41 @@ function InvTableRow({
   }
 
   return (
-    <GestureDetector gesture={longPressGesture}>
-      <View className="border-b border-border last:border-b-0">
-        {rowContent}
-        <GestureDetector gesture={panGesture}>
-          <View
-            className="items-center justify-center border-t border-border dark:border-border"
-            style={[
-              { minHeight: ROW_RESIZER_MIN_HEIGHT },
-              Platform.OS === 'web' ? { cursor: 'ns-resize' as ViewStyle['cursor'] } : undefined,
-            ]}
-          >
-            <Icon as={GripVertical} size={18} className="text-muted-foreground/80" />
-          </View>
-        </GestureDetector>
-      </View>
-    </GestureDetector>
+    <View className="border-b border-border last:border-b-0">
+      <GestureDetector gesture={longPressGesture}>
+        <View>{rowContent}</View>
+      </GestureDetector>
+      <GestureDetector gesture={panGesture}>
+        <View
+          className="items-center justify-center border-t border-border dark:border-border"
+          style={[
+            { minHeight: ROW_RESIZER_MIN_HEIGHT },
+            Platform.OS === 'web' ? { cursor: 'ns-resize' as ViewStyle['cursor'] } : undefined,
+          ]}
+        >
+          <Icon as={GripVertical} size={18} className="text-muted-foreground/80" />
+        </View>
+      </GestureDetector>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  datePickerModalRoot: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  datePickerOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  datePickerSheetWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
