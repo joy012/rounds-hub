@@ -38,9 +38,6 @@ const TABLET_BREAKPOINT = 0;
 export interface InvTableProps {
   rows: InvRow[];
   onChange: (rows: InvRow[]) => void;
-  onPenModeChange?: (active: boolean) => void;
-  /** Called when the cell editor dialog closes (so parent can re-enable scroll) */
-  onEditorClose?: () => void;
 }
 
 const COLUMN_HEADERS = ['Date', 'Investigation', 'Findings'] as const;
@@ -133,7 +130,7 @@ function InvCell({
   );
 }
 
-export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: InvTableProps) {
+export function InvTable({ rows, onChange }: InvTableProps) {
   const { width } = useWindowDimensions();
   const isTablet = width >= TABLET_BREAKPOINT;
   const initialRows = useMemo(
@@ -207,9 +204,11 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
     Toast.show({ type: 'success', text1: 'Investigation row removed', position: 'top' });
   }, [confirmRemoveId, onChange]);
 
-  const editingRow = editingCell
-    ? draftRows.find((r) => r.id === editingCell.rowId)
-    : null;
+  const editingRow = useMemo(
+    () =>
+      editingCell ? draftRows.find((r) => r.id === editingCell.rowId) ?? null : null,
+    [editingCell, draftRows]
+  );
 
   return (
     <View className="gap-2">
@@ -324,10 +323,7 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
       <InvCellEditor
         open={!!editingCell}
         onOpenChange={(open) => {
-          if (!open) {
-            setEditingCell(null);
-            onEditorClose?.();
-          }
+          if (!open) setEditingCell(null);
         }}
         row={editingRow ?? draftRows[0] ?? { id: '' }}
         column={editingCell?.column ?? 'investigation'}
@@ -339,7 +335,6 @@ export function InvTable({ rows, onChange, onPenModeChange, onEditorClose }: Inv
             }
             : () => { }
         }
-        onPenModeChange={onPenModeChange}
       />
 
       <ConsentModal
