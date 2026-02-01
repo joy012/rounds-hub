@@ -16,14 +16,14 @@ export interface BedCardProps {
   isTablet?: boolean;
 }
 
-/** Default card height when no diagnosis preview (mobile). */
+/** Minimum card height when no diagnosis preview (mobile). */
 export const BED_CARD_HEIGHT_DEFAULT = 80;
-/** Card height when row has diagnosis (mobile). */
-export const BED_CARD_HEIGHT_WITH_DX = 110;
-/** Default card height on tablet – larger for better readability. */
+/** Card height when row has diagnosis — enough for full diagnosis text (mobile). */
+export const BED_CARD_HEIGHT_WITH_DX = 140;
+/** Minimum card height on tablet. */
 export const BED_CARD_HEIGHT_DEFAULT_TABLET = 104;
 /** Card height on tablet when row has diagnosis. */
-export const BED_CARD_HEIGHT_WITH_DX_TABLET = 144;
+export const BED_CARD_HEIGHT_WITH_DX_TABLET = 180;
 
 /** Empty canvas PNG base64 is ~100–300 chars; actual drawings are larger. */
 const MEANINGFUL_DRAWING_MIN_LENGTH = 400;
@@ -49,20 +49,20 @@ export function BedCard({ bed, onPress, className, cardHeight, isTablet }: BedCa
   /** If no diagnosis but has other patient data, show user icon. */
   const showUserIcon = hasPatient && !showDiagnosis;
 
-  const height = cardHeight ?? (isTablet ? BED_CARD_HEIGHT_DEFAULT_TABLET : BED_CARD_HEIGHT_DEFAULT);
+  const minHeight = cardHeight ?? (isTablet ? BED_CARD_HEIGHT_DEFAULT_TABLET : BED_CARD_HEIGHT_DEFAULT);
   const iconSize = isTablet ? ICON_SIZE_TABLET : ICON_SIZE_MOBILE;
 
   return (
     <Pressable
       onPress={onPress}
-      className={cn('min-w-0', className)}
+      className={cn('min-w-0 flex-1', className)}
       style={({ pressed }) => ({
         opacity: pressed ? 0.94 : 1,
         transform: [{ scale: pressed ? 0.98 : 1 }],
       })}
     >
       <View
-        style={{ height }}
+        style={{ minHeight, flex: 1 }}
         className={cn(
           'overflow-hidden rounded-xl border-2 shadow-premium',
           hasPatient
@@ -92,10 +92,10 @@ export function BedCard({ bed, onPress, className, cardHeight, isTablet }: BedCa
             showDxText ? (
               <Text
                 className={cn(
-                  'font-bold text-success-foreground text-center',
+                  'font-bold text-success-foreground text-center flex-1',
                   isTablet ? 'text-base' : 'text-sm'
                 )}
-                numberOfLines={2}
+                numberOfLines={5}
               >
                 {dx!.text!.trim()}
               </Text>

@@ -12,11 +12,17 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { useWard } from '@/contexts/ward-context';
+import { loadPreferences, savePreferences } from '@/lib/preferences';
+import { exportWardSummaryPdf } from '@/lib/pdf-export';
+import type { BedsPerRow } from '@/lib/types';
 import type { Bed } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import {
   BedDouble,
+  FileDown,
   Hash,
+  LayoutGrid,
+  Menu,
   Moon,
   Pencil,
   Plus,
@@ -25,9 +31,10 @@ import {
   Sun,
   Trash2,
   UserMinus,
+  X,
 } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import { useCallback, useMemo, useReducer } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { Image, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -42,8 +49,16 @@ const TABLET_BREAKPOINT = 600;
 const BOTTOM_PADDING_EXTRA = 56;
 const ADD_BUTTON_WIDTH_TABLET = 80;
 const CUSTOM_BUTTON_WIDTH_TABLET = 110;
-/** Always 4 beds per row on any device (4x4 grid). */
-const BEDS_PER_ROW = 4;
+/** Default beds per row when preferences not yet loaded. */
+const DEFAULT_BEDS_PER_ROW = 4;
+
+const LAYOUT_OPTIONS: { value: 2 | 3 | 4 | 5 | 6; label: string }[] = [
+  { value: 2, label: '2×2' },
+  { value: 3, label: '3×3' },
+  { value: 4, label: '4×4' },
+  { value: 5, label: '5×5' },
+  { value: 6, label: '6×6' },
+];
 
 /** True if bed has diagnosis text or meaningful drawing (used to compute row card height). */
 function bedHasDiagnosis(bed: Bed | null): boolean {
@@ -129,6 +144,27 @@ export default function HomeScreen() {
   const { ward, isLoading, updateTitle, updateWardNumber, addBeds, deleteBed, dischargePatient } =
     useWard();
   const [state, dispatch] = useReducer(homeReducer, initialHomeState);
+  const [bedsPerRow, setBedsPerRow] = useState(DEFAULT_BEDS_PER_ROW);
+  const [exportingWardPdf, setExportingWardPdf] = useState(false);
+  const [layoutModalOpen, setLayoutModalOpen] = useState(false);
+
+  useEffect(() => {
+    loadPreferences().then((prefs) => {
+      const n = prefs.bedsPerRow ?? DEFAULT_BEDS_PER_ROW;
+      setBedsPerRow(n >= 2 && n <= 6 ? n : DEFAULT_BEDS_PER_ROW);
+    });
+  }, []);
+
+  const handleLayoutSelect = useCallback(async (value: BedsPerRow) => {
+    setBedsPerRow(value);
+    setLayoutModalOpen(false);
+    try {
+      const prefs = await loadPreferences();
+      await savePreferences({ ...prefs, bedsPerRow: value });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not save layout', position: 'top' });
+    }
+  }, []);
 
   const title = ward?.title ?? '';
   const wardNumber = ward?.wardNumber ?? '';
@@ -147,16 +183,30 @@ export default function HomeScreen() {
   );
   const totalBeds = useMemo(() => beds.length, [beds]);
 
+  /** Rounds at a glance: total, occupied, documented (with Dx). */
+  const wardSummary = useMemo(() => {
+    let occupied = 0;
+    let withDx = 0;
+    for (const bed of beds) {
+      const hasPatient = Boolean(bed.patient);
+      if (hasPatient) occupied++;
+      if (hasPatient && bed.patient?.dx && (bed.patient.dx.text?.trim() || (bed.patient.dx.image?.trim() && bed.patient.dx.image.length >= 400))) {
+        withDx++;
+      }
+    }
+    return { total: beds.length, occupied, withDx };
+  }, [beds]);
+
   const gridRows = useMemo(() => {
     const rows: (Bed | null)[][] = [];
-    for (let i = 0; i < beds.length; i += BEDS_PER_ROW) {
-      const row: (Bed | null)[] = beds.slice(i, i + BEDS_PER_ROW);
-      while (row.length < BEDS_PER_ROW) row.push(null);
+    for (let i = 0; i < beds.length; i += bedsPerRow) {
+      const row: (Bed | null)[] = beds.slice(i, i + bedsPerRow);
+      while (row.length < bedsPerRow) row.push(null);
       rows.push(row);
     }
-    if (rows.length === 0) rows.push(Array(BEDS_PER_ROW).fill(null));
+    if (rows.length === 0) rows.push(Array(bedsPerRow).fill(null));
     return rows;
-  }, [beds]);
+  }, [beds, bedsPerRow]);
 
   /** Per-row card height so all cells in a row match the tallest (diagnosis preview). Larger on tablet. */
   const rowCardHeights = useMemo(() => {
@@ -178,7 +228,6 @@ export default function HomeScreen() {
     updateTitle(newTitle);
     updateWardNumber(newWard);
     dispatch({ type: 'EDIT_SAVE' });
-    Toast.show({ type: 'success', text1: 'Ward name and number saved', position: 'top' });
   }, [state.titleInput, state.wardInput, title, updateTitle, updateWardNumber]);
 
   const handleCancelEdit = useCallback(() => {
@@ -188,7 +237,6 @@ export default function HomeScreen() {
   const handleAddBeds = useCallback(
     (count: number) => {
       addBeds(count);
-      Toast.show({ type: 'success', text1: `Added ${count} bed(s) to ward`, position: 'top' });
     },
     [addBeds]
   );
@@ -197,14 +245,12 @@ export default function HomeScreen() {
     if (!state.confirmDeleteBedId) return;
     await deleteBed(state.confirmDeleteBedId);
     dispatch({ type: 'CLOSE_CONFIRM_DELETE' });
-    Toast.show({ type: 'success', text1: 'Bed removed from ward', position: 'top' });
   }, [state.confirmDeleteBedId, deleteBed]);
 
   const handleConfirmDischarge = useCallback(async () => {
     if (!state.confirmDischargeBedId) return;
     await dischargePatient(state.confirmDischargeBedId);
     dispatch({ type: 'CLOSE_CONFIRM_DISCHARGE' });
-    Toast.show({ type: 'success', text1: 'Patient discharged from bed', position: 'top' });
   }, [state.confirmDischargeBedId, dischargePatient]);
 
   const handleCustomAddSubmit = useCallback(() => {
@@ -246,6 +292,18 @@ export default function HomeScreen() {
   const handleCustomAddClose = useCallback(() => {
     dispatch({ type: 'CUSTOM_ADD_CLOSE' });
   }, []);
+
+  const handleExportWardPdf = useCallback(async () => {
+    if (!ward) return;
+    setExportingWardPdf(true);
+    try {
+      await exportWardSummaryPdf(ward);
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not export ward PDF', position: 'top' });
+    } finally {
+      setExportingWardPdf(false);
+    }
+  }, [ward]);
 
   if (isLoading || !ward) {
     return (
@@ -292,51 +350,62 @@ export default function HomeScreen() {
                 RoundsHub
               </Text>
             </View>
-            <Button size="icon" variant="ghost" className="h-9 w-9" onPress={toggleColorScheme}>
-              <Icon
-                as={colorScheme === 'dark' ? Sun : Moon}
-                size={20}
-                className="text-muted-foreground"
-              />
-            </Button>
+            <View className="flex-row items-center gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-9 w-9"
+                onPress={() => router.push('/personal')}
+                accessibilityLabel="Personal"
+              >
+                <Icon as={Menu} size={20} className="text-muted-foreground" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-9 w-9" onPress={toggleColorScheme}>
+                <Icon
+                  as={colorScheme === 'dark' ? Sun : Moon}
+                  size={20}
+                  className="text-muted-foreground"
+                />
+              </Button>
+            </View>
           </View>
 
           {/* Department / Ward card */}
           <View className="mb-4">
             {state.editMode ? (
               <View className="gap-3 rounded-xl bg-primary/10 px-4 py-3 dark:bg-primary/15">
-                <View className="gap-1">
-                  <Text variant="small" className="font-semibold text-muted-foreground">
-                    Department
-                  </Text>
-                  <Input
-                    className="min-h-9 text-sm font-semibold text-foreground"
-                    placeholder="Department name"
-                    value={displayTitle}
-                    onChangeText={handleTitleInputChange}
-                  />
-                </View>
-                <View className="flex-row items-end gap-2">
-                  <View className="w-20">
-                    <Text variant="small" className="mb-1 font-semibold text-muted-foreground">
+                <View className="flex-row items-end gap-3">
+                  <View className="min-w-0 flex-1 gap-1">
+                    <Text variant="small" className="font-semibold text-muted-foreground">
+                      Department
+                    </Text>
+                    <Input
+                      className="min-h-9 text-sm font-semibold text-foreground"
+                      placeholder="Department name"
+                      value={displayTitle}
+                      onChangeText={handleTitleInputChange}
+                    />
+                  </View>
+                  <View className="w-20 gap-1">
+                    <Text variant="small" className="font-semibold text-muted-foreground">
                       Ward
                     </Text>
                     <Input
                       className="min-h-9 text-sm font-semibold text-foreground"
                       placeholder="1"
-                    value={displayWard}
-                    onChangeText={handleWardInputChange}
+                      value={displayWard}
+                      onChangeText={handleWardInputChange}
                     />
                   </View>
-                  <View className="flex-row gap-1.5">
-                    <Button size="sm" variant="outline" className="h-9 px-2.5" onPress={handleCancelEdit}>
-                      <Text variant="small">Cancel</Text>
-                    </Button>
-                    <Button size="sm" className="h-9 bg-primary px-2.5" onPress={handleSave}>
-                      <Icon as={Save} size={14} />
-                      <Text variant="small">Save</Text>
-                    </Button>
-                  </View>
+                </View>
+                <View className="flex-row gap-2">
+                  <Button size="sm" variant="outline" className="flex-1" onPress={handleCancelEdit}>
+                    <Text variant="small">Cancel</Text>
+                  </Button>
+                  <Button size="sm" className="flex-1 bg-primary" onPress={handleSave}>
+                    <Icon as={Save} size={14} />
+                    <Text variant="small">Save</Text>
+                  </Button>
                 </View>
               </View>
             ) : (
@@ -361,11 +430,52 @@ export default function HomeScreen() {
                     </View>
                   </View>
                 </View>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onPress={handleEdit}>
-                  <Icon as={Pencil} size={16} className="text-primary" />
-                </Button>
+                <View className="flex-row items-center gap-0.5">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onPress={() => setLayoutModalOpen(true)}
+                    accessibilityLabel="Ward layout"
+                  >
+                    <Icon as={LayoutGrid} size={18} className="text-primary" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onPress={handleEdit}>
+                    <Icon as={Pencil} size={16} className="text-primary" />
+                  </Button>
+                </View>
               </View>
             )}
+          </View>
+
+          {/* Ward summary — rounds at a glance */}
+          <View className="mb-4 rounded-xl bg-primary/10 px-4 py-3 dark:bg-primary/15">
+            <View className="flex-row flex-wrap items-center justify-between gap-x-6 gap-y-2">
+              <View className="flex-row flex-wrap items-center gap-x-6 gap-y-2">
+                <View className="flex-row items-center gap-1.5">
+                  <Text variant="small" className="font-semibold text-muted-foreground">Total</Text>
+                  <Text className="text-base font-bold text-foreground">{wardSummary.total}</Text>
+                </View>
+                <View className="flex-row items-center gap-1.5">
+                  <Text variant="small" className="font-semibold text-muted-foreground">Occupied</Text>
+                  <Text className="text-base font-bold text-foreground">{wardSummary.occupied}</Text>
+                </View>
+                <View className="flex-row items-center gap-1.5">
+                  <Text variant="small" className="font-semibold text-muted-foreground">Documented</Text>
+                  <Text className="text-base font-bold text-foreground">{wardSummary.withDx}</Text>
+                </View>
+              </View>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-primary/50"
+                onPress={handleExportWardPdf}
+                disabled={exportingWardPdf}
+              >
+                <Icon as={FileDown} size={16} className="text-primary" />
+                <Text variant="small" className="font-medium text-primary">Export ward PDF</Text>
+              </Button>
+            </View>
           </View>
 
           {/* Add beds — full width on mobile, fixed width on tablet */}
@@ -515,6 +625,56 @@ export default function HomeScreen() {
             onConfirm={handleCustomAddSubmit}
             onCancel={handleCustomAddClose}
           />
+        )}
+
+        {/* Ward layout modal — beds per row */}
+        {layoutModalOpen && (
+          <View className="absolute inset-0 z-50 items-center justify-center bg-black/50 p-4">
+            <View className="w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-xl dark:border-border">
+              <View className="mb-4 flex-row items-center justify-between gap-2">
+                <View className="flex-row items-center gap-2">
+                  <Icon as={LayoutGrid} size={20} className="text-primary" />
+                  <Text className="text-base font-bold text-foreground">Ward layout</Text>
+                </View>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onPress={() => setLayoutModalOpen(false)}
+                  accessibilityLabel="Close"
+                >
+                  <Icon as={X} size={18} className="text-muted-foreground" />
+                </Button>
+              </View>
+              <Text variant="small" className="mb-3 text-muted-foreground">
+                Beds per row
+              </Text>
+              <View className="flex-row flex-wrap gap-2">
+                {LAYOUT_OPTIONS.map((opt) => {
+                  const active = bedsPerRow === opt.value;
+                  return (
+                    <Button
+                      key={opt.value}
+                      size="sm"
+                      variant={active ? 'default' : 'outline'}
+                      className={cn(
+                        'min-w-14',
+                        active && 'bg-primary ring-2 ring-primary/40 ring-offset-2 ring-offset-background dark:ring-offset-background'
+                      )}
+                      onPress={() => handleLayoutSelect(opt.value)}
+                    >
+                      <Text
+                        variant="small"
+                        className={active ? 'font-bold text-primary-foreground' : 'font-medium'}
+                      >
+                        {opt.label}
+                      </Text>
+                    </Button>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
         )}
       </SafeAreaView>
     </>

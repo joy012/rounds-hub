@@ -9,7 +9,9 @@
     "web": "expo start -c --web",
     "start:android": "expo start -c --android",
     "prebuild:clean": "expo prebuild --clean",
-    "build:apk": "expo prebuild --platform android && cd android && ./gradlew assembleRelease",
+    "build:apk": "expo prebuild --platform android && node scripts/ensure-android-sdk.js && cd android && ./gradlew assembleRelease",
+    "build:apk:release": "expo prebuild --clean --platform android && node scripts/ensure-android-sdk.js && cd android && ./gradlew assembleRelease",
+    "build:aab": "expo prebuild --platform android && node scripts/ensure-android-sdk.js && cd android && ./gradlew bundleRelease",
     "clean": "rm -rf .expo node_modules"
   },
   "dependencies": {
@@ -37,7 +39,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "~54.0.29",
+    "expo-build-properties": "^1.0.10",
     "expo-constants": "~18.0.12",
+    "expo-document-picker": "^14.0.8",
     "expo-file-system": "^19.0.21",
     "expo-linking": "~8.0.10",
     "expo-print": "^15.0.8",
@@ -53,6 +57,7 @@
     "react-native": "0.81.5",
     "react-native-gesture-handler": "^2.30.0",
     "react-native-get-random-values": "^2.0.0",
+    "react-native-markdown-display": "^7.0.2",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",

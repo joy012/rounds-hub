@@ -23,10 +23,20 @@
           "imageWidth": 120
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "useLegacyPackaging": true,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ]
     ],
     "assetBundlePatterns": [
-      "**/*"
+      "assets/**"
     ],
     "ios": {
       "supportsTablet": true

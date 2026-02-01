@@ -1,6 +1,7 @@
-import { generateId } from '@/lib/utils';
+import { loadPreferences } from '@/lib/preferences';
 import { loadWard, saveWard } from '@/lib/storage';
-import type { Bed, PatientData, Ward } from '@/lib/types';
+import { generateId } from '@/lib/utils';
+import type { Bed, PatientData, UserPreferences, Ward } from '@/lib/types';
 import {
   createContext,
   useCallback,
@@ -16,6 +17,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 interface WardContextValue {
   ward: Ward | null;
   isLoading: boolean;
+  reloadWard: () => Promise<void>;
   updateTitle: (title: string) => Promise<void>;
   updateWardNumber: (wardNumber: string) => Promise<void>;
   addBeds: (count: number) => Promise<void>;
@@ -28,17 +30,24 @@ interface WardContextValue {
 const WardContext = createContext<WardContextValue | null>(null);
 
 const DEFAULT_TITLE = 'Surgery Department';
+const DEFAULT_WARD_NUMBER = '1';
 const INITIAL_BED_COUNT = 12;
 
-function createInitialWard(): Ward {
-  const beds: Bed[] = Array.from({ length: INITIAL_BED_COUNT }, (_, i) => ({
+function createInitialWard(prefs?: UserPreferences | null): Ward {
+  const title = prefs?.defaultDepartment?.trim() || DEFAULT_TITLE;
+  const wardNumber = prefs?.defaultWardNumber?.trim() || DEFAULT_WARD_NUMBER;
+  const bedCount = Math.min(
+    Math.max(1, prefs?.defaultBedCount ?? INITIAL_BED_COUNT),
+    100
+  );
+  const beds: Bed[] = Array.from({ length: bedCount }, (_, i) => ({
     id: generateId(),
     number: i + 1,
   }));
   return {
     id: generateId(),
-    title: DEFAULT_TITLE,
-    wardNumber: '1',
+    title,
+    wardNumber,
     beds,
   };
 }
@@ -52,14 +61,14 @@ export function WardProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    loadWard()
-      .then(async (loaded) => {
+    Promise.all([loadWard(), loadPreferences()])
+      .then(async ([loaded, prefs]) => {
         if (cancelled) return;
         let next: Ward;
         try {
-          next = loaded ?? createInitialWard();
+          next = loaded ?? createInitialWard(prefs);
         } catch {
-          next = createInitialWard();
+          next = createInitialWard(prefs);
         }
         setWard(next);
         if (!loaded) {
@@ -73,10 +82,21 @@ export function WardProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (!cancelled) {
-          const initial = createInitialWard();
-          setWard(initial);
-          saveWard(initial).catch(() => {});
-          setIsLoading(false);
+          loadPreferences()
+            .then((prefs) => {
+              if (!cancelled) {
+                const initial = createInitialWard(prefs);
+                setWard(initial);
+                saveWard(initial).catch(() => {});
+                setIsLoading(false);
+              }
+            })
+            .catch(() => {
+              if (!cancelled) {
+                setWard(createInitialWard(null));
+                setIsLoading(false);
+              }
+            });
         }
       });
     return () => {
@@ -106,6 +126,11 @@ export function WardProvider({ children }: { children: ReactNode }) {
         // Keep optimistic UI; user data is in state
       }
     }
+  }, []);
+
+  const reloadWard = useCallback(async () => {
+    const loaded = await loadWard();
+    if (loaded) setWard(loaded);
   }, []);
 
   const updateTitle = useCallback(
@@ -183,6 +208,7 @@ export function WardProvider({ children }: { children: ReactNode }) {
     () => ({
       ward,
       isLoading,
+      reloadWard,
       updateTitle,
       updateWardNumber,
       addBeds,
@@ -194,6 +220,7 @@ export function WardProvider({ children }: { children: ReactNode }) {
     [
       ward,
       isLoading,
+      reloadWard,
       updateTitle,
       updateWardNumber,
       addBeds,

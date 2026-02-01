@@ -1,3 +1,4 @@
+import { loadPreferences } from '@/lib/preferences';
 import { NAV_THEME } from '@/lib/theme';
 import { ThemeProvider } from '@react-navigation/native';
 import { Slot } from 'expo-router';
@@ -59,19 +60,30 @@ class ThemeLayoutErrorBoundary extends React.Component<
 /**
  * Theme wrapper: defers applying theme class so navigation context stays stable on toggle
  * (avoids "Couldn't find a navigation context" in dev and production APK).
+ * Uses theme from preferences when set (light/dark/system); system uses device colorScheme.
  */
 function ThemeWrapper({ children }: { children: ReactNode }) {
   const { colorScheme } = useColorScheme();
+  const [prefsTheme, setPrefsTheme] = useState<'light' | 'dark' | 'system' | null>(null);
   const [appliedScheme, setAppliedScheme] = useState<'light' | 'dark'>(() =>
     colorScheme === 'dark' ? 'dark' : 'light'
   );
 
   useEffect(() => {
-    const next = colorScheme === 'dark' ? 'dark' : 'light';
-    if (next === appliedScheme) return;
-    const id = setTimeout(() => setAppliedScheme(next), 0);
+    loadPreferences().then((prefs) => {
+      setPrefsTheme(prefs.theme ?? 'system');
+    });
+  }, []);
+
+  useEffect(() => {
+    if (prefsTheme === null) return;
+    const systemDark = colorScheme === 'dark';
+    const resolved =
+      prefsTheme === 'light' ? 'light' : prefsTheme === 'dark' ? 'dark' : systemDark ? 'dark' : 'light';
+    if (resolved === appliedScheme) return;
+    const id = setTimeout(() => setAppliedScheme(resolved), 0);
     return () => clearTimeout(id);
-  }, [colorScheme, appliedScheme]);
+  }, [prefsTheme, colorScheme, appliedScheme]);
 
   const isDark = appliedScheme === 'dark';
   return (

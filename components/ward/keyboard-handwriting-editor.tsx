@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { Textarea } from '@/components/ui/textarea';
+import { ConsentModal } from '@/components/ward/modal-confirmation';
 import { THEME } from '@/lib/theme';
 import type { DxPlanContent } from '@/lib/types';
 import { Eraser, Pencil } from 'lucide-react-native';
@@ -43,6 +44,7 @@ function KeyboardAndHandwritingEditorInner(
   const [canvasKey, setCanvasKey] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
   const [pendingTool, setPendingTool] = useState<null | 'pen' | 'eraser'>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const signatureRef = useRef<SignatureViewRef>(null);
   const draftRef = useRef(draftText);
@@ -154,7 +156,20 @@ function KeyboardAndHandwritingEditorInner(
     }
   }, [canvasReady]);
 
+  /** Empty canvas PNG base64 is ~100–300 chars; actual drawings are larger */
+  const hasMeaningfulDrawing = Boolean(value?.image?.trim() && (value.image?.length ?? 0) > 400);
+
   const handleClearDrawing = useCallback(() => {
+    if (hasMeaningfulDrawing) {
+      setShowClearConfirm(true);
+    } else {
+      setCanvasKey((k) => k + 1);
+      setTool('pen');
+    }
+  }, [hasMeaningfulDrawing]);
+
+  const handleConfirmClearDrawing = useCallback(() => {
+    setShowClearConfirm(false);
     setCanvasKey((k) => k + 1);
     setTool('pen');
   }, []);
@@ -189,6 +204,7 @@ function KeyboardAndHandwritingEditorInner(
             </View>
           )}
         </View>
+        {/* Handwriting canvas: react-native-signature-canvas does not expose palm rejection or touch filtering. Accidental palm/wrist strokes may be captured; use pen or careful finger input. */}
         <View
           className="overflow-hidden rounded-lg border border-border bg-muted/30 dark:border-border dark:bg-muted/20"
           style={{ height: HANDWRITING_CANVAS_HEIGHT }}
@@ -283,6 +299,16 @@ function KeyboardAndHandwritingEditorInner(
           </Button>
         </View>
       </View>
+      <ConsentModal
+        open={showClearConfirm}
+        onOpenChange={setShowClearConfirm}
+        title="Clear drawing?"
+        description="This will remove all drawn content. Continue?"
+        confirmText="Clear"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={handleConfirmClearDrawing}
+      />
     </View>
   );
 }

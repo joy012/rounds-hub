@@ -45,3 +45,21 @@ export interface Ward {
   wardNumber?: string;
   beds: Bed[];
 }
+
+/** Beds per row on home grid (2x2 through 6x6). */
+export type BedsPerRow = 2 | 3 | 4 | 5 | 6;
+
+export interface UserPreferences {
+  defaultDepartment?: string;
+  defaultWardNumber?: string;
+  defaultBedCount?: number;
+  theme?: 'light' | 'dark' | 'system';
+  bedsPerRow?: BedsPerRow;
+}
+
+export interface ReferenceCard {
+  id: string;
+  title: string;
+  body: string;
+  order: number;
+}
