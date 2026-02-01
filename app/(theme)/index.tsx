@@ -27,7 +27,7 @@ import {
   UserMinus,
 } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useReducer } from 'react';
 import { Image, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -38,6 +38,8 @@ const ROW_GAP = 16;
 const COL_GAP = 8;
 const CONTENT_PX = 16;
 const TABLET_BREAKPOINT = 600;
+/** Extra bottom padding so the last row of bed action buttons (Delete/Out) stays above system/drawer nav and is tappable. */
+const BOTTOM_PADDING_EXTRA = 56;
 const ADD_BUTTON_WIDTH_TABLET = 80;
 const CUSTOM_BUTTON_WIDTH_TABLET = 110;
 /** Always 4 beds per row on any device (4x4 grid). */
@@ -51,6 +53,73 @@ function bedHasDiagnosis(bed: Bed | null): boolean {
   return Boolean(dx.image?.trim() && dx.image.length >= 400);
 }
 
+type HomeState = {
+  editMode: boolean;
+  titleInput: string;
+  wardInput: string;
+  confirmDeleteBedId: string | null;
+  confirmDischargeBedId: string | null;
+  customAddOpen: boolean;
+  customAddValue: string;
+};
+
+type HomeAction =
+  | { type: 'EDIT_START'; title: string; wardNumber: string }
+  | { type: 'EDIT_SET_TITLE'; value: string }
+  | { type: 'EDIT_SET_WARD'; value: string }
+  | { type: 'EDIT_SAVE' }
+  | { type: 'EDIT_CANCEL' }
+  | { type: 'CONFIRM_DELETE'; bedId: string }
+  | { type: 'CONFIRM_DISCHARGE'; bedId: string }
+  | { type: 'CLOSE_CONFIRM_DELETE' }
+  | { type: 'CLOSE_CONFIRM_DISCHARGE' }
+  | { type: 'CUSTOM_ADD_OPEN' }
+  | { type: 'CUSTOM_ADD_CLOSE' }
+  | { type: 'CUSTOM_ADD_SET'; value: string }
+  | { type: 'CUSTOM_ADD_SUBMIT' };
+
+const initialHomeState: HomeState = {
+  editMode: false,
+  titleInput: '',
+  wardInput: '',
+  confirmDeleteBedId: null,
+  confirmDischargeBedId: null,
+  customAddOpen: false,
+  customAddValue: '',
+};
+
+function homeReducer(state: HomeState, action: HomeAction): HomeState {
+  switch (action.type) {
+    case 'EDIT_START':
+      return { ...state, editMode: true, titleInput: action.title, wardInput: action.wardNumber };
+    case 'EDIT_SET_TITLE':
+      return { ...state, titleInput: action.value };
+    case 'EDIT_SET_WARD':
+      return { ...state, wardInput: action.value };
+    case 'EDIT_SAVE':
+    case 'EDIT_CANCEL':
+      return { ...state, editMode: false, titleInput: '', wardInput: '' };
+    case 'CONFIRM_DELETE':
+      return { ...state, confirmDeleteBedId: action.bedId };
+    case 'CONFIRM_DISCHARGE':
+      return { ...state, confirmDischargeBedId: action.bedId };
+    case 'CLOSE_CONFIRM_DELETE':
+      return { ...state, confirmDeleteBedId: null };
+    case 'CLOSE_CONFIRM_DISCHARGE':
+      return { ...state, confirmDischargeBedId: null };
+    case 'CUSTOM_ADD_OPEN':
+      return { ...state, customAddOpen: true };
+    case 'CUSTOM_ADD_CLOSE':
+      return { ...state, customAddOpen: false, customAddValue: '' };
+    case 'CUSTOM_ADD_SET':
+      return { ...state, customAddValue: action.value };
+    case 'CUSTOM_ADD_SUBMIT':
+      return { ...state, customAddOpen: false, customAddValue: '' };
+    default:
+      return state;
+  }
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -59,20 +128,24 @@ export default function HomeScreen() {
   const { colorScheme, toggleColorScheme } = useColorScheme();
   const { ward, isLoading, updateTitle, updateWardNumber, addBeds, deleteBed, dischargePatient } =
     useWard();
-  const [editMode, setEditMode] = useState(false);
-  const [titleInput, setTitleInput] = useState('');
-  const [wardInput, setWardInput] = useState('');
-  const [confirmDeleteBedId, setConfirmDeleteBedId] = useState<string | null>(null);
-  const [confirmDischargeBedId, setConfirmDischargeBedId] = useState<string | null>(null);
-  const [customAddOpen, setCustomAddOpen] = useState(false);
-  const [customAddValue, setCustomAddValue] = useState('');
+  const [state, dispatch] = useReducer(homeReducer, initialHomeState);
 
   const title = ward?.title ?? '';
   const wardNumber = ward?.wardNumber ?? '';
-  const displayTitle = titleInput !== undefined && titleInput !== '' ? titleInput : title;
-  const displayWard = wardInput !== undefined && wardInput !== '' ? wardInput : (wardNumber || '1');
   const beds = ward?.beds ?? [];
-  const totalBeds = beds.length;
+
+  const displayTitle = useMemo(
+    () => (state.titleInput !== undefined && state.titleInput !== '' ? state.titleInput : title),
+    [state.titleInput, title]
+  );
+  const displayWard = useMemo(
+    () =>
+      state.wardInput !== undefined && state.wardInput !== ''
+        ? state.wardInput
+        : (wardNumber || '1'),
+    [state.wardInput, wardNumber]
+  );
+  const totalBeds = useMemo(() => beds.length, [beds]);
 
   const gridRows = useMemo(() => {
     const rows: (Bed | null)[][] = [];
@@ -96,26 +169,20 @@ export default function HomeScreen() {
   }, [gridRows, isTablet]);
 
   const handleEdit = useCallback(() => {
-    setTitleInput(title);
-    setWardInput(wardNumber || '1');
-    setEditMode(true);
+    dispatch({ type: 'EDIT_START', title, wardNumber: wardNumber || '1' });
   }, [title, wardNumber]);
 
   const handleSave = useCallback(() => {
-    const newTitle = (titleInput ?? '').trim() || title;
-    const newWard = (wardInput ?? '').trim() || '1';
+    const newTitle = (state.titleInput ?? '').trim() || title;
+    const newWard = (state.wardInput ?? '').trim() || '1';
     updateTitle(newTitle);
     updateWardNumber(newWard);
-    setTitleInput('');
-    setWardInput('');
-    setEditMode(false);
+    dispatch({ type: 'EDIT_SAVE' });
     Toast.show({ type: 'success', text1: 'Ward name and number saved', position: 'top' });
-  }, [titleInput, wardInput, title, updateTitle, updateWardNumber]);
+  }, [state.titleInput, state.wardInput, title, updateTitle, updateWardNumber]);
 
   const handleCancelEdit = useCallback(() => {
-    setTitleInput('');
-    setWardInput('');
-    setEditMode(false);
+    dispatch({ type: 'EDIT_CANCEL' });
   }, []);
 
   const handleAddBeds = useCallback(
@@ -127,21 +194,21 @@ export default function HomeScreen() {
   );
 
   const handleConfirmDeleteBed = useCallback(async () => {
-    if (!confirmDeleteBedId) return;
-    await deleteBed(confirmDeleteBedId);
-    setConfirmDeleteBedId(null);
+    if (!state.confirmDeleteBedId) return;
+    await deleteBed(state.confirmDeleteBedId);
+    dispatch({ type: 'CLOSE_CONFIRM_DELETE' });
     Toast.show({ type: 'success', text1: 'Bed removed from ward', position: 'top' });
-  }, [confirmDeleteBedId, deleteBed]);
+  }, [state.confirmDeleteBedId, deleteBed]);
 
   const handleConfirmDischarge = useCallback(async () => {
-    if (!confirmDischargeBedId) return;
-    await dischargePatient(confirmDischargeBedId);
-    setConfirmDischargeBedId(null);
+    if (!state.confirmDischargeBedId) return;
+    await dischargePatient(state.confirmDischargeBedId);
+    dispatch({ type: 'CLOSE_CONFIRM_DISCHARGE' });
     Toast.show({ type: 'success', text1: 'Patient discharged from bed', position: 'top' });
-  }, [confirmDischargeBedId, dischargePatient]);
+  }, [state.confirmDischargeBedId, dischargePatient]);
 
   const handleCustomAddSubmit = useCallback(() => {
-    const num = parseInt(customAddValue, 10);
+    const num = parseInt(state.customAddValue, 10);
     if (!Number.isFinite(num) || num < 1) {
       Toast.show({ type: 'error', text1: 'Please enter a number of beds from 1 to 50', position: 'top' });
       return;
@@ -151,9 +218,34 @@ export default function HomeScreen() {
       return;
     }
     handleAddBeds(num);
-    setCustomAddValue('');
-    setCustomAddOpen(false);
-  }, [customAddValue, handleAddBeds]);
+    dispatch({ type: 'CUSTOM_ADD_SUBMIT' });
+  }, [state.customAddValue, handleAddBeds]);
+
+  const handleBedPress = useCallback(
+    (bedId: string) => {
+      router.push({ pathname: '/bed/[id]', params: { id: bedId } });
+    },
+    [router]
+  );
+
+  const handleTitleInputChange = useCallback((v: string) => {
+    dispatch({ type: 'EDIT_SET_TITLE', value: v });
+  }, []);
+  const handleWardInputChange = useCallback((v: string) => {
+    dispatch({ type: 'EDIT_SET_WARD', value: v });
+  }, []);
+  const handleCustomAddValueChange = useCallback((v: string) => {
+    dispatch({ type: 'CUSTOM_ADD_SET', value: v });
+  }, []);
+  const handleCloseConfirmDelete = useCallback(() => {
+    dispatch({ type: 'CLOSE_CONFIRM_DELETE' });
+  }, []);
+  const handleCloseConfirmDischarge = useCallback(() => {
+    dispatch({ type: 'CLOSE_CONFIRM_DISCHARGE' });
+  }, []);
+  const handleCustomAddClose = useCallback(() => {
+    dispatch({ type: 'CUSTOM_ADD_CLOSE' });
+  }, []);
 
   if (isLoading || !ward) {
     return (
@@ -173,7 +265,7 @@ export default function HomeScreen() {
           contentContainerStyle={{
             paddingHorizontal: CONTENT_PX,
             paddingTop: 8,
-            paddingBottom: 24 + insets.bottom,
+            paddingBottom: 24 + insets.bottom + BOTTOM_PADDING_EXTRA,
           }}
           showsVerticalScrollIndicator={false}
         >
@@ -211,7 +303,7 @@ export default function HomeScreen() {
 
           {/* Department / Ward card */}
           <View className="mb-4">
-            {editMode ? (
+            {state.editMode ? (
               <View className="gap-3 rounded-xl bg-primary/10 px-4 py-3 dark:bg-primary/15">
                 <View className="gap-1">
                   <Text variant="small" className="font-semibold text-muted-foreground">
@@ -221,7 +313,7 @@ export default function HomeScreen() {
                     className="min-h-9 text-sm font-semibold text-foreground"
                     placeholder="Department name"
                     value={displayTitle}
-                    onChangeText={setTitleInput}
+                    onChangeText={handleTitleInputChange}
                   />
                 </View>
                 <View className="flex-row items-end gap-2">
@@ -232,8 +324,8 @@ export default function HomeScreen() {
                     <Input
                       className="min-h-9 text-sm font-semibold text-foreground"
                       placeholder="1"
-                      value={displayWard}
-                      onChangeText={setWardInput}
+                    value={displayWard}
+                    onChangeText={handleWardInputChange}
                     />
                   </View>
                   <View className="flex-row gap-1.5">
@@ -306,7 +398,7 @@ export default function HomeScreen() {
                   size="sm"
                   variant="outline"
                   className="h-10 w-full border-primary/40"
-                  onPress={() => setCustomAddOpen(true)}
+                  onPress={() => dispatch({ type: 'CUSTOM_ADD_OPEN' })}
                 >
                   <Icon as={SlidersHorizontal} size={18} className="text-primary" />
                   <Text variant="small" className="font-semibold text-primary">Custom</Text>
@@ -335,9 +427,7 @@ export default function HomeScreen() {
                         <>
                           <BedCard
                             bed={bed}
-                            onPress={() =>
-                              router.push({ pathname: '/bed/[id]', params: { id: bed.id } })
-                            }
+                            onPress={() => handleBedPress(bed.id)}
                             className="w-full"
                             cardHeight={rowCardHeight}
                             isTablet={isTablet}
@@ -351,7 +441,7 @@ export default function HomeScreen() {
                                 'h-8 border-info/50',
                                 isTablet ? 'min-w-0 flex-1 px-2' : 'w-8 flex-shrink-0'
                               )}
-                              onPress={() => setConfirmDischargeBedId(bed.id)}
+                              onPress={() => dispatch({ type: 'CONFIRM_DISCHARGE', bedId: bed.id })}
                             >
                               <Icon as={UserMinus} size={14} className="text-info" />
                               {isTablet && (
@@ -368,7 +458,7 @@ export default function HomeScreen() {
                               'h-8 border-destructive/50',
                               isTablet ? 'min-w-0 flex-1 px-2' : 'w-8 flex-shrink-0'
                             )}
-                            onPress={() => setConfirmDeleteBedId(bed.id)}
+                            onPress={() => dispatch({ type: 'CONFIRM_DELETE', bedId: bed.id })}
                           >
                             <Icon as={Trash2} size={14} className="text-destructive" />
 {isTablet && (
@@ -397,8 +487,8 @@ export default function HomeScreen() {
         </ScrollView>
 
         <ConsentModal
-          open={confirmDeleteBedId !== null}
-          onOpenChange={(open) => !open && setConfirmDeleteBedId(null)}
+          open={state.confirmDeleteBedId !== null}
+          onOpenChange={(open) => !open && handleCloseConfirmDelete()}
           title="Remove bed?"
           description="This will remove the bed and all patient data. This cannot be undone."
           confirmText="Remove"
@@ -408,8 +498,8 @@ export default function HomeScreen() {
         />
 
         <ConsentModal
-          open={confirmDischargeBedId !== null}
-          onOpenChange={(open) => !open && setConfirmDischargeBedId(null)}
+          open={state.confirmDischargeBedId !== null}
+          onOpenChange={(open) => !open && handleCloseConfirmDischarge()}
           title="Discharge patient?"
           description="Patient data will be cleared. The bed will remain."
           confirmText="Discharge"
@@ -418,15 +508,12 @@ export default function HomeScreen() {
           onConfirm={handleConfirmDischarge}
         />
 
-        {customAddOpen && (
+        {state.customAddOpen && (
           <CustomAddBedsModal
-            value={customAddValue}
-            onChangeText={setCustomAddValue}
+            value={state.customAddValue}
+            onChangeText={handleCustomAddValueChange}
             onConfirm={handleCustomAddSubmit}
-            onCancel={() => {
-              setCustomAddOpen(false);
-              setCustomAddValue('');
-            }}
+            onCancel={handleCustomAddClose}
           />
         )}
       </SafeAreaView>
